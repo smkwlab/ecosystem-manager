@@ -2,7 +2,6 @@ defmodule EcosystemManager.GitHubTest do
   use ExUnit.Case
   doctest EcosystemManager.GitHub
 
-
   alias EcosystemManager.{GitHub, Repository}
 
   describe "get_github_remote/1" do
