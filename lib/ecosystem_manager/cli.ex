@@ -11,7 +11,7 @@ defmodule EcosystemManager.CLI do
     |> execute()
   end
 
-  defp parse_args(args) do
+  def parse_args(args) do
     {opts, command_args, _} =
       OptionParser.parse(args,
         switches: [
@@ -101,7 +101,7 @@ defmodule EcosystemManager.CLI do
     IO.puts("\nCompleted in #{elapsed}ms")
   end
 
-  defp build_filters(opts) do
+  def build_filters(opts) do
     []
     |> maybe_add_filter(opts[:urgent_issues], {:urgent_issues_only, true})
     |> maybe_add_filter(opts[:with_prs], {:with_prs_only, true})
@@ -118,7 +118,7 @@ defmodule EcosystemManager.CLI do
     find_ecosystem_root(current_dir) || current_dir
   end
 
-  defp find_ecosystem_root(dir) do
+  def find_ecosystem_root(dir) do
     ecosystem_marker = Path.join(dir, "ecosystem-manager.sh")
 
     cond do
