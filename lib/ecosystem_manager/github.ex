@@ -106,6 +106,15 @@ defmodule EcosystemManager.GitHub do
   # Private functions
 
   defp gh_api_call(args) do
+    # In test environment, check for mock mode
+    if Mix.env() == :test and System.get_env("MOCK_GH_CLI") == "true" do
+      mock_gh_response(args)
+    else
+      real_gh_api_call(args)
+    end
+  end
+
+  defp real_gh_api_call(args) do
     case System.cmd("gh", args, stderr_to_stdout: true) do
       {output, 0} ->
         case Jason.decode(output) do
@@ -116,6 +125,64 @@ defmodule EcosystemManager.GitHub do
       {error, _} ->
         # Log at debug level to avoid noise in normal operation
         Logger.debug("GitHub CLI command failed: #{inspect(args)}, error: #{error}")
+        {:error, :gh_command_failed}
+    end
+  end
+
+  # Mock gh CLI responses for testing
+  defp mock_gh_response(args) do
+    cond do
+      # Mock invalid JSON response - check this first
+      System.get_env("MOCK_INVALID_JSON") == "true" ->
+        # Return error to test error handling
+        {:error, :invalid_json}
+
+      # Mock issue list command
+      "issue" in args and "list" in args ->
+        {:ok,
+         [
+           %{
+             "number" => 1,
+             "title" => "Bug: Authentication fails",
+             "labels" => [%{"name" => "bug"}, %{"name" => "critical"}]
+           },
+           %{
+             "number" => 2,
+             "title" => "Feature: Add dark mode",
+             "labels" => [%{"name" => "enhancement"}]
+           },
+           %{
+             "number" => 3,
+             "title" => "Urgent: Security vulnerability",
+             "labels" => [%{"name" => "urgent"}, %{"name" => "security"}]
+           }
+         ]}
+
+      # Mock PR list command
+      "pr" in args and "list" in args ->
+        {:ok,
+         [
+           %{
+             "number" => 10,
+             "title" => "Fix authentication bug",
+             "isDraft" => false,
+             "reviewDecision" => "REVIEW_REQUIRED"
+           },
+           %{
+             "number" => 11,
+             "title" => "WIP: New feature",
+             "isDraft" => true,
+             "reviewDecision" => nil
+           },
+           %{
+             "number" => 12,
+             "title" => "Update documentation",
+             "isDraft" => false,
+             "reviewDecision" => "APPROVED"
+           }
+         ]}
+
+      true ->
         {:error, :gh_command_failed}
     end
   end
@@ -144,5 +211,30 @@ defmodule EcosystemManager.GitHub do
         Enum.any?(target_labels, &String.contains?(label_name, &1))
       end)
     end)
+  end
+
+  # Test helpers - exposed only for testing
+  if Mix.env() == :test do
+    def test_count_by_labels(issues, target_labels), do: count_by_labels(issues, target_labels)
+
+    def test_process_issues_success(issues) do
+      total = length(issues)
+      bugs = count_by_labels(issues, ~w[bug error critical regression])
+      enhancements = count_by_labels(issues, ~w[enhancement feature improvement request])
+      urgent = count_by_labels(issues, ~w[critical urgent high])
+      %{total: total, bugs: bugs, enhancements: enhancements, urgent: urgent}
+    end
+
+    def test_process_prs_success(prs) do
+      total = length(prs)
+      drafts = Enum.count(prs, & &1["isDraft"])
+
+      needs_review =
+        Enum.count(prs, fn pr ->
+          not pr["isDraft"] and pr["reviewDecision"] in [nil, "REVIEW_REQUIRED"]
+        end)
+
+      %{total: total, drafts: drafts, needs_review: needs_review}
+    end
   end
 end

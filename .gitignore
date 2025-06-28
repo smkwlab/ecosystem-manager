@@ -27,3 +27,12 @@ ecosystem_manager-*.tar
 
 # Script execution logs
 /logs/
+
+# Compiled binary (escript)
+ecosystem-manager
+
+# Test and coverage logs
+*.log
+
+# Temporary test files
+simple_test.exs

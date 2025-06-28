@@ -1,0 +1,3 @@
+# Ignore warnings for known no-return functions
+lib/ecosystem_manager/cli.ex:21:9:no_return
+Function halt/1 has no local return.
