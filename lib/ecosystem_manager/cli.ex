@@ -5,6 +5,7 @@ defmodule EcosystemManager.CLI do
 
   alias EcosystemManager.Status
   alias EcosystemManager.Config
+  alias EcosystemManager.Repository
 
   # Behaviours for dependency injection
   @callback puts(String.t()) :: :ok
@@ -81,6 +82,14 @@ defmodule EcosystemManager.CLI do
 
   defp continue_execute(%{command: "config"}, adapter) do
     show_config(adapter)
+  end
+
+  defp continue_execute(%{command: "repos"}, adapter) do
+    show_repositories(adapter)
+  end
+
+  defp continue_execute(%{command: "init-config"}, adapter) do
+    init_config(adapter)
   end
 
   defp continue_execute(%{command: unknown}, adapter) do
@@ -162,6 +171,8 @@ defmodule EcosystemManager.CLI do
     COMMANDS:
         status          Show status of all repositories (default)
         config          Show current configuration
+        repos           Show repository configuration and sources
+        init-config     Create example user configuration files
         help            Show this help message
 
     STATUS OPTIONS:
@@ -191,15 +202,90 @@ defmodule EcosystemManager.CLI do
   defp show_config(adapter) do
     adapter.puts("EcosystemManager Configuration")
     adapter.puts("===============================")
-    
+
     config = Config.all()
-    
+
     Enum.each(config, fn {key, value} ->
       formatted_key = key |> Atom.to_string() |> String.replace("_", " ") |> String.capitalize()
       adapter.puts("#{String.pad_trailing(formatted_key, 25)}: #{inspect(value)}")
     end)
-    
+
     adapter.puts("\nConfiguration file: config/config.exs")
     adapter.puts("Example file: config/config.example.exs")
+  end
+
+  defp show_repositories(adapter) do
+    adapter.puts("Repository Configuration")
+    adapter.puts("=======================")
+
+    # Show current repositories
+    repos = Repository.all_repositories()
+    adapter.puts("\nMonitored repositories (#{length(repos)}):")
+
+    Enum.each(repos, fn repo ->
+      adapter.puts("  - #{repo}")
+    end)
+
+    # Show configuration source
+    adapter.puts("\nConfiguration sources (in priority order):")
+
+    Repository.user_config_paths()
+    |> Enum.with_index(1)
+    |> Enum.each(fn {path, index} ->
+      status = if File.exists?(path), do: "✓ EXISTS", else: "  missing"
+      adapter.puts("  #{index}. #{status} #{path}")
+    end)
+
+    # Show defaults
+    defaults = Repository.default_repositories()
+    adapter.puts("\nDefault repositories (#{length(defaults)}):")
+    adapter.puts("  (used when no user configuration found)")
+
+    adapter.puts("\nTo customize:")
+    adapter.puts("  1. Run: ecosystem-manager init-config")
+    adapter.puts("  2. Edit: ~/.config/ecosystem-manager/repositories.txt")
+    adapter.puts("  3. Add one repository name per line")
+  end
+
+  defp init_config(adapter) do
+    adapter.puts("Initializing user configuration...")
+
+    case Repository.create_example_config() do
+      {:ok, example_file} ->
+        adapter.puts("✓ Created example configuration: #{example_file}")
+
+        # Also create the actual config file if it doesn't exist
+        config_dir = Repository.ensure_user_config_dir()
+        config_file = Path.join(config_dir, "repositories.txt")
+
+        if File.exists?(config_file) do
+          adapter.puts("✓ User configuration already exists: #{config_file}")
+        else
+          create_user_config_file(adapter, config_file)
+        end
+
+      {:error, reason} ->
+        adapter.puts("✗ Failed to create example configuration: #{reason}")
+    end
+  end
+
+  defp create_user_config_file(adapter, config_file) do
+    # Copy default repositories to user config
+    default_content =
+      Repository.default_repositories()
+      |> Enum.join("\n")
+      |> then(
+        &("# EcosystemManager Repository Configuration\n# Edit this file to customize monitored repositories\n\n" <>
+            &1 <> "\n")
+      )
+
+    case File.write(config_file, default_content) do
+      :ok ->
+        adapter.puts("✓ Created user configuration: #{config_file}")
+        adapter.puts("\nYou can now edit this file to customize your repository list.")
+
+      {:error, reason} ->
+        adapter.puts("✗ Failed to create user configuration: #{reason}")
+    end
   end
 end

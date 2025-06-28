@@ -95,6 +95,36 @@ config :ecosystem_manager,
 
 設定例は `config/config.example.exs` を参照してください。
 
+### リポジトリ設定
+
+監視対象のリポジトリは、ユーザー設定ファイルで指定できます：
+
+```bash
+# 設定ファイル初期化
+./ecosystem-manager init-config
+
+# 現在の設定確認
+./ecosystem-manager repos
+
+# 設定ファイル編集
+$EDITOR ~/.config/ecosystem-manager/repositories.txt
+```
+
+**設定ファイルの場所（優先順）**:
+1. `~/.config/ecosystem-manager/repositories.txt` (推奨)
+2. `~/.ecosystem-manager-repositories`
+3. `~/.ecosystem-repositories.txt`
+4. `./.ecosystem-repositories` (プロジェクト固有)
+
+**設定ファイル例**:
+```bash
+# コメント行
+.
+texlive-ja-textlint
+latex-environment
+my-custom-template
+```
+
 ## アーキテクチャ
 
 - **CLI**: コマンドライン処理とオプション解析
