@@ -4,6 +4,7 @@ defmodule EcosystemManager.CLI do
   """
 
   alias EcosystemManager.Status
+  alias EcosystemManager.Config
 
   # Behaviours for dependency injection
   @callback puts(String.t()) :: :ok
@@ -76,6 +77,10 @@ defmodule EcosystemManager.CLI do
 
   defp continue_execute(%{command: "help"}, adapter) do
     show_help(adapter)
+  end
+
+  defp continue_execute(%{command: "config"}, adapter) do
+    show_config(adapter)
   end
 
   defp continue_execute(%{command: unknown}, adapter) do
@@ -156,6 +161,7 @@ defmodule EcosystemManager.CLI do
 
     COMMANDS:
         status          Show status of all repositories (default)
+        config          Show current configuration
         help            Show this help message
 
     STATUS OPTIONS:
@@ -180,5 +186,20 @@ defmodule EcosystemManager.CLI do
         - Fast mode:     ~1-2 seconds 
         - Full mode:     ~2-4 seconds (vs 12+ seconds for Bash version)
     """)
+  end
+
+  defp show_config(adapter) do
+    adapter.puts("EcosystemManager Configuration")
+    adapter.puts("===============================")
+    
+    config = Config.all()
+    
+    Enum.each(config, fn {key, value} ->
+      formatted_key = key |> Atom.to_string() |> String.replace("_", " ") |> String.capitalize()
+      adapter.puts("#{String.pad_trailing(formatted_key, 25)}: #{inspect(value)}")
+    end)
+    
+    adapter.puts("\nConfiguration file: config/config.exs")
+    adapter.puts("Example file: config/config.example.exs")
   end
 end

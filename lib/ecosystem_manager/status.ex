@@ -5,17 +5,18 @@ defmodule EcosystemManager.Status do
 
   alias EcosystemManager.GitHub
   alias EcosystemManager.Repository
+  alias EcosystemManager.Config
 
   @doc "Get status of all repositories in parallel"
   def get_all_status(base_path, opts \\ []) do
-    max_concurrency = Keyword.get(opts, :max_concurrency, 8)
-    include_github = Keyword.get(opts, :include_github, true)
+    max_concurrency = Keyword.get(opts, :max_concurrency, Config.default_concurrency())
+    include_github = Keyword.get(opts, :include_github, Config.default_include_github())
 
     Repository.all_repositories()
     |> Enum.map(&Repository.new(&1, base_path))
     |> Task.async_stream(&fetch_repository_info(&1, include_github),
       max_concurrency: max_concurrency,
-      timeout: 15_000
+      timeout: Config.github_timeout()
     )
     |> Enum.map(fn
       {:ok, repo} ->
@@ -30,7 +31,7 @@ defmodule EcosystemManager.Status do
 
   @doc "Get status of a specific repository"
   def get_repository_status(repo_name, base_path, opts \\ []) do
-    include_github = Keyword.get(opts, :include_github, true)
+    include_github = Keyword.get(opts, :include_github, Config.default_include_github())
 
     repo_name
     |> Repository.new(base_path)
@@ -39,7 +40,7 @@ defmodule EcosystemManager.Status do
 
   @doc "Format status for display"
   def format_status(repos, opts \\ []) do
-    format = Keyword.get(opts, :format, :compact)
+    format = Keyword.get(opts, :format, Config.default_format())
     filters = Keyword.get(opts, :filters, [])
 
     repos
