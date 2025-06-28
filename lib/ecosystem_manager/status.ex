@@ -156,6 +156,8 @@ defmodule EcosystemManager.Status do
   defp format_changes(0), do: "clean"
   defp format_changes(n), do: "#{n}"
 
+  defp format_pr_info(nil, _format), do: "0"
+
   defp format_pr_info(%{total: total, drafts: drafts, needs_review: needs_review}, :compact) do
     cond do
       needs_review > 0 -> "#{total}(r)"
@@ -167,6 +169,8 @@ defmodule EcosystemManager.Status do
   defp format_pr_info(%{total: total, drafts: drafts, needs_review: needs_review}, :long) do
     "#{total} (#{drafts}d, #{needs_review}r)"
   end
+
+  defp format_issue_info(nil, _format), do: "0"
 
   defp format_issue_info(%{total: total, urgent: urgent}, :compact) do
     if urgent > 0 do
@@ -183,11 +187,14 @@ defmodule EcosystemManager.Status do
     "#{total} (#{bugs}b, #{enhancements}e, #{urgent}!)"
   end
 
-  defp truncate_string(string, max_length) when byte_size(string) <= max_length do
+  defp truncate_string(nil, _max_length), do: ""
+
+  defp truncate_string(string, max_length)
+       when is_binary(string) and byte_size(string) <= max_length do
     string
   end
 
-  defp truncate_string(string, max_length) do
+  defp truncate_string(string, max_length) when is_binary(string) do
     String.slice(string, 0, max_length - 3) <> "..."
   end
 

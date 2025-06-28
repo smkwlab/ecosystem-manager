@@ -12,7 +12,8 @@ defmodule EcosystemManager.MixProject do
       dialyzer: [
         plt_file: {:no_warn, "priv/plts/dialyzer.plt"},
         plt_add_apps: [:mix],
-        flags: [:error_handling, :underspecs, :unmatched_returns]
+        flags: [:error_handling, :underspecs, :unmatched_returns],
+        ignore_warnings: "dialyzer.ignore-warnings"
       ]
     ]
   end
@@ -32,7 +33,8 @@ defmodule EcosystemManager.MixProject do
       # Development and testing tools
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
-      {:ex_doc, "~> 0.31", only: :dev, runtime: false}
+      {:ex_doc, "~> 0.31", only: :dev, runtime: false},
+      {:mox, "~> 1.0", only: :test}
     ]
   end
 end

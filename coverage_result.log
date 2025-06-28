@@ -1,0 +1,97 @@
+Cover compiling modules ...
+Running ExUnit with seed: 263380, max_cases: 24
+
+    warning: variable "expected_type" is unused (if the variable is not meant to be used, prefix it with an underscore)
+    │
+ 18 │       for {args, expected_type} <- test_cases do
+    │                  ~
+    │
+    └─ test/ecosystem_manager/cli_main_test.exs:18:18: EcosystemManager.CLIMainTest."test main関数とプライベート実行関数のテスト main function through spawned process"/1
+
+...............spawn: Could not cd to /tmp/non-existent
+....................................................LaTeX Thesis Environment Ecosystem Manager (Elixir Edition)
+
+USAGE:
+    ecosystem-manager [COMMAND] [OPTIONS]
+
+COMMANDS:
+    status          Show status of all repositories (default)
+    help            Show this help message
+
+STATUS OPTIONS:
+    -l, --long             Show detailed status with full information
+    -f, --fast             Fast mode - skip GitHub API calls
+    --urgent-issues        Show only repositories with urgent issues
+    --with-prs            Show only repositories with open PRs
+    --needs-review        Show only repositories with PRs needing review
+    --max-concurrency N   Maximum parallel operations (default: 8)
+
+EXAMPLES:
+    ecosystem-manager                    # Show compact status
+    ecosystem-manager status --long     # Show detailed status
+    ecosystem-manager status --fast     # Quick status without GitHub API
+    ecosystem-manager status --urgent-issues  # Filter urgent issues
+
+PERFORMANCE:
+    This Elixir version uses parallel processing to significantly improve
+    performance compared to the original Bash script.
+    
+    Expected performance:
+    - Fast mode:     ~1-2 seconds 
+    - Full mode:     ~2-4 seconds (vs 12+ seconds for Bash version)
+
+LaTeX Thesis Environment Ecosystem Manager (Elixir Edition)
+
+USAGE:
+    ecosystem-manager [COMMAND] [OPTIONS]
+
+COMMANDS:
+    status          Show status of all repositories (default)
+    help            Show this help message
+
+STATUS OPTIONS:
+    -l, --long             Show detailed status with full information
+    -f, --fast             Fast mode - skip GitHub API calls
+    --urgent-issues        Show only repositories with urgent issues
+    --with-prs            Show only repositories with open PRs
+    --needs-review        Show only repositories with PRs needing review
+    --max-concurrency N   Maximum parallel operations (default: 8)
+
+EXAMPLES:
+    ecosystem-manager                    # Show compact status
+    ecosystem-manager status --long     # Show detailed status
+    ecosystem-manager status --fast     # Quick status without GitHub API
+    ecosystem-manager status --urgent-issues  # Filter urgent issues
+
+PERFORMANCE:
+    This Elixir version uses parallel processing to significantly improve
+    performance compared to the original Bash script.
+    
+    Expected performance:
+    - Fast mode:     ~1-2 seconds 
+    - Full mode:     ~2-4 seconds (vs 12+ seconds for Bash version)
+
+Repository Status Overview
+
+Repository                 Branch                      Changes  Last Commit            PRs      Issues  
+----------                 ------                      -------  -----------            ---      ------  
+latex-ecosystem                                        8        844869a 2 hours ago    0        0       
+texlive-ja-textlint        main                        clean    d50af52 5 days ago     0        0       
+latex-environment          main                        clean    8e38d3f 16 hours ago   0        0       
+aldc                       main                        clean    ef9fe7b 5 days ago     0        0       
+sotsuron-template          main                        clean    72f3343 16 hours ago   0        0       
+latex-template             main                        clean    55312cb 9 days ago     0        0       
+sotsuron-report-template   main                        clean    5416a43 9 days ago     0        0       
+wr-template                main                        clean    c70a123 5 days ago     0        0       
+ise-report-template        main                        clean    c0175ba 15 hours ago   0        0       
+latex-release-action       main                        clean    6644159 5 days ago     0        0       
+thesis-management-tools    main                        clean    6bcc3e7 23 hours ago   0        0       
+thesis-student-registry    main                        clean    2a4a33e 15 hours ago   0        0       
+ai-academic-paper-reviewer main                        clean    16f20ae 35 hours ago   0        0       
+ai-reviewer                main                        clean    7d4c3b5 3 days ago     0        0       
+
+(Fast mode - GitHub API calls skipped)
+
+Completed in 48ms
+Unknown command: version
+Run 'ecosystem-manager help' for usage information.

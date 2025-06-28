@@ -5,13 +5,32 @@ defmodule EcosystemManager.CLI do
 
   alias EcosystemManager.Status
 
-  def main(args) do
-    args
-    |> parse_args()
-    |> execute()
+  # Behaviours for dependency injection
+  @callback puts(String.t()) :: :ok
+  @callback halt(non_neg_integer()) :: no_return()
+  @callback get_env(String.t()) :: String.t() | nil
+  @callback cwd!() :: String.t()
+  @callback monotonic_time(atom()) :: integer()
+
+  defmodule IOAdapter do
+    @moduledoc """
+    Default adapter for IO operations, system calls, and environment access.
+    """
+    @behaviour EcosystemManager.CLI
+    def puts(message), do: IO.puts(message)
+    def halt(code), do: System.halt(code)
+    def get_env(var), do: System.get_env(var)
+    def cwd!, do: File.cwd!()
+    def monotonic_time(unit), do: System.monotonic_time(unit)
   end
 
-  def parse_args(args) do
+  def main(args, adapter \\ IOAdapter) do
+    args
+    |> parse_args(adapter)
+    |> execute(adapter)
+  end
+
+  def parse_args(args, adapter \\ IOAdapter) do
     {opts, command_args, _} =
       OptionParser.parse(args,
         switches: [
@@ -39,35 +58,35 @@ defmodule EcosystemManager.CLI do
     %{
       command: command,
       opts: opts,
-      base_path: get_base_path()
+      base_path: get_base_path(adapter)
     }
   end
 
-  defp execute(%{opts: opts} = config) do
+  defp execute(%{opts: opts} = config, adapter) do
     if opts[:help] do
-      show_help()
+      show_help(adapter)
     else
-      continue_execute(config)
+      continue_execute(config, adapter)
     end
   end
 
-  defp continue_execute(%{command: "status"} = config) do
-    execute_status(config)
+  defp continue_execute(%{command: "status"} = config, adapter) do
+    execute_status(config, adapter)
   end
 
-  defp continue_execute(%{command: "help"}) do
-    show_help()
+  defp continue_execute(%{command: "help"}, adapter) do
+    show_help(adapter)
   end
 
-  defp continue_execute(%{command: unknown}) do
-    IO.puts("Unknown command: #{unknown}")
-    IO.puts("Run 'ecosystem-manager help' for usage information.")
-    System.halt(1)
+  defp continue_execute(%{command: unknown}, adapter) do
+    adapter.puts("Unknown command: #{unknown}")
+    adapter.puts("Run 'ecosystem-manager help' for usage information.")
+    adapter.halt(1)
   end
 
-  defp execute_status(%{opts: opts, base_path: base_path}) do
-    IO.puts("Repository Status Overview")
-    IO.puts("")
+  defp execute_status(%{opts: opts, base_path: base_path}, adapter) do
+    adapter.puts("Repository Status Overview")
+    adapter.puts("")
 
     # Configure options
     status_opts = [
@@ -81,24 +100,24 @@ defmodule EcosystemManager.CLI do
     ]
 
     # Show timing information
-    start_time = System.monotonic_time(:millisecond)
+    start_time = adapter.monotonic_time(:millisecond)
 
     # Get status
     repos = Status.get_all_status(base_path, status_opts)
 
-    end_time = System.monotonic_time(:millisecond)
+    end_time = adapter.monotonic_time(:millisecond)
     elapsed = end_time - start_time
 
     # Format and display
     output = Status.format_status(repos, format_opts)
-    IO.puts(output)
+    adapter.puts(output)
 
     # Show performance info
     if opts[:fast] do
-      IO.puts("\n(Fast mode - GitHub API calls skipped)")
+      adapter.puts("\n(Fast mode - GitHub API calls skipped)")
     end
 
-    IO.puts("\nCompleted in #{elapsed}ms")
+    adapter.puts("\nCompleted in #{elapsed}ms")
   end
 
   def build_filters(opts) do
@@ -111,9 +130,9 @@ defmodule EcosystemManager.CLI do
   defp maybe_add_filter(filters, true, filter), do: [filter | filters]
   defp maybe_add_filter(filters, _, _), do: filters
 
-  defp get_base_path do
+  defp get_base_path(adapter) do
     # Try to find the ecosystem root directory
-    current_dir = System.get_env("PWD") || File.cwd!()
+    current_dir = adapter.get_env("PWD") || adapter.cwd!()
 
     find_ecosystem_root(current_dir) || current_dir
   end
@@ -128,8 +147,8 @@ defmodule EcosystemManager.CLI do
     end
   end
 
-  defp show_help do
-    IO.puts("""
+  defp show_help(adapter) do
+    adapter.puts("""
     LaTeX Thesis Environment Ecosystem Manager (Elixir Edition)
 
     USAGE:
