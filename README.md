@@ -63,9 +63,72 @@ mix test --cover
 mix format && mix credo && mix dialyzer
 ```
 
+## 設定
+
+### 設定ファイル
+
+`config/config.exs` で動作設定をカスタマイズできます：
+
+```elixir
+config :ecosystem_manager,
+  default_concurrency: 8,      # 並列処理数
+  github_timeout: 15_000,      # GitHub APIタイムアウト(ms)
+  git_timeout: 5_000,          # Gitコマンドタイムアウト(ms)
+  default_format: :compact,    # デフォルト出力形式
+  enable_cache: false,         # キャッシュ有効化(将来実装)
+  enable_timing: false         # 実行時間測定
+```
+
+### 環境別設定
+
+```elixir
+# 開発環境
+config :ecosystem_manager,
+  enable_timing: true,
+  default_concurrency: 4
+
+# 本番環境  
+config :ecosystem_manager,
+  default_concurrency: 12,
+  enable_cache: true
+```
+
+設定例は `config/config.example.exs` を参照してください。
+
+### リポジトリ設定
+
+監視対象のリポジトリは、ユーザー設定ファイルで指定できます：
+
+```bash
+# 設定ファイル初期化
+./ecosystem-manager init-config
+
+# 現在の設定確認
+./ecosystem-manager repos
+
+# 設定ファイル編集
+$EDITOR ~/.config/ecosystem-manager/repositories.txt
+```
+
+**設定ファイルの場所（優先順）**:
+1. `~/.config/ecosystem-manager/repositories.txt` (推奨)
+2. `~/.ecosystem-manager-repositories`
+3. `~/.ecosystem-repositories.txt`
+4. `./.ecosystem-repositories` (プロジェクト固有)
+
+**設定ファイル例**:
+```bash
+# コメント行
+.
+texlive-ja-textlint
+latex-environment
+my-custom-template
+```
+
 ## アーキテクチャ
 
 - **CLI**: コマンドライン処理とオプション解析
+- **Config**: 設定管理と環境別設定
 - **Repository**: Git情報取得とリポジトリ管理
 - **GitHub**: GitHub API統合（Issues/PR統計）
 - **Status**: 並列処理とフォーマット出力
