@@ -3,36 +3,17 @@ defmodule EcosystemManager.CLI do
   Command Line Interface for Ecosystem Manager.
   """
 
-  alias EcosystemManager.Status
   alias EcosystemManager.Config
   alias EcosystemManager.Repository
+  alias EcosystemManager.Status
 
-  # Behaviours for dependency injection
-  @callback puts(String.t()) :: :ok
-  @callback halt(non_neg_integer()) :: no_return()
-  @callback get_env(String.t()) :: String.t() | nil
-  @callback cwd!() :: String.t()
-  @callback monotonic_time(atom()) :: integer()
-
-  defmodule IOAdapter do
-    @moduledoc """
-    Default adapter for IO operations, system calls, and environment access.
-    """
-    @behaviour EcosystemManager.CLI
-    def puts(message), do: IO.puts(message)
-    def halt(code), do: System.halt(code)
-    def get_env(var), do: System.get_env(var)
-    def cwd!, do: File.cwd!()
-    def monotonic_time(unit), do: System.monotonic_time(unit)
-  end
-
-  def main(args, adapter \\ IOAdapter) do
+  def main(args) do
     args
-    |> parse_args(adapter)
-    |> execute(adapter)
+    |> parse_args()
+    |> execute()
   end
 
-  def parse_args(args, adapter \\ IOAdapter) do
+  def parse_args(args) do
     {opts, command_args, _} =
       OptionParser.parse(args,
         switches: [
@@ -60,47 +41,49 @@ defmodule EcosystemManager.CLI do
     %{
       command: command,
       opts: opts,
-      base_path: get_base_path(adapter)
+      base_path: get_base_path()
     }
   end
 
-  defp execute(%{opts: opts} = config, adapter) do
+  defp execute(%{opts: opts} = config) do
     if opts[:help] do
-      show_help(adapter)
+      show_help()
     else
-      continue_execute(config, adapter)
+      continue_execute(config)
     end
   end
 
-  defp continue_execute(%{command: "status"} = config, adapter) do
-    execute_status(config, adapter)
+  defp continue_execute(%{command: "status"} = config) do
+    execute_status(config)
   end
 
-  defp continue_execute(%{command: "help"}, adapter) do
-    show_help(adapter)
+  defp continue_execute(%{command: "help"}) do
+    show_help()
   end
 
-  defp continue_execute(%{command: "config"}, adapter) do
-    show_config(adapter)
+  defp continue_execute(%{command: "config"}) do
+    show_config()
   end
 
-  defp continue_execute(%{command: "repos"}, adapter) do
-    show_repositories(adapter)
+  defp continue_execute(%{command: "repos"}) do
+    show_repositories()
   end
 
-  defp continue_execute(%{command: "init-config"}, adapter) do
-    init_config(adapter)
+  defp continue_execute(%{command: "init-config"}) do
+    init_config()
   end
 
-  defp continue_execute(%{command: unknown}, adapter) do
-    adapter.puts("Unknown command: #{unknown}")
-    adapter.puts("Run 'ecosystem-manager help' for usage information.")
-    adapter.halt(1)
+  defp continue_execute(%{command: unknown}) do
+    IO.puts("Unknown command: #{unknown}")
+    IO.puts("Run 'ecosystem-manager help' for usage information.")
+    
+    # Use exit instead of System.halt for testability
+    exit({:shutdown, 1})
   end
 
-  defp execute_status(%{opts: opts, base_path: base_path}, adapter) do
-    adapter.puts("Repository Status Overview")
-    adapter.puts("")
+  defp execute_status(%{opts: opts, base_path: base_path}) do
+    IO.puts("Repository Status Overview")
+    IO.puts("")
 
     # Configure options
     status_opts = [
@@ -114,24 +97,24 @@ defmodule EcosystemManager.CLI do
     ]
 
     # Show timing information
-    start_time = adapter.monotonic_time(:millisecond)
+    start_time = System.monotonic_time(:millisecond)
 
     # Get status
     repos = Status.get_all_status(base_path, status_opts)
 
-    end_time = adapter.monotonic_time(:millisecond)
+    end_time = System.monotonic_time(:millisecond)
     elapsed = end_time - start_time
 
     # Format and display
     output = Status.format_status(repos, format_opts)
-    adapter.puts(output)
+    IO.puts(output)
 
     # Show performance info
     if opts[:fast] do
-      adapter.puts("\n(Fast mode - GitHub API calls skipped)")
+      IO.puts("\n(Fast mode - GitHub API calls skipped)")
     end
 
-    adapter.puts("\nCompleted in #{elapsed}ms")
+    IO.puts("\nCompleted in #{elapsed}ms")
   end
 
   def build_filters(opts) do
@@ -144,9 +127,9 @@ defmodule EcosystemManager.CLI do
   defp maybe_add_filter(filters, true, filter), do: [filter | filters]
   defp maybe_add_filter(filters, _, _), do: filters
 
-  defp get_base_path(adapter) do
+  defp get_base_path do
     # Try to find the ecosystem root directory
-    current_dir = adapter.get_env("PWD") || adapter.cwd!()
+    current_dir = System.get_env("PWD") || File.cwd!()
 
     find_ecosystem_root(current_dir) || current_dir
   end
@@ -161,8 +144,8 @@ defmodule EcosystemManager.CLI do
     end
   end
 
-  defp show_help(adapter) do
-    adapter.puts("""
+  defp show_help do
+    IO.puts("""
     LaTeX Thesis Environment Ecosystem Manager (Elixir Edition)
 
     USAGE:
@@ -199,77 +182,77 @@ defmodule EcosystemManager.CLI do
     """)
   end
 
-  defp show_config(adapter) do
-    adapter.puts("EcosystemManager Configuration")
-    adapter.puts("===============================")
+  defp show_config do
+    IO.puts("EcosystemManager Configuration")
+    IO.puts("===============================")
 
     config = Config.all()
 
     Enum.each(config, fn {key, value} ->
       formatted_key = key |> Atom.to_string() |> String.replace("_", " ") |> String.capitalize()
-      adapter.puts("#{String.pad_trailing(formatted_key, 25)}: #{inspect(value)}")
+      IO.puts("#{String.pad_trailing(formatted_key, 25)}: #{inspect(value)}")
     end)
 
-    adapter.puts("\nConfiguration file: config/config.exs")
-    adapter.puts("Example file: config/config.example.exs")
+    IO.puts("\nConfiguration file: config/config.exs")
+    IO.puts("Example file: config/config.example.exs")
   end
 
-  defp show_repositories(adapter) do
-    adapter.puts("Repository Configuration")
-    adapter.puts("=======================")
+  defp show_repositories do
+    IO.puts("Repository Configuration")
+    IO.puts("=======================")
 
     # Show current repositories
     repos = Repository.all_repositories()
-    adapter.puts("\nMonitored repositories (#{length(repos)}):")
+    IO.puts("\nMonitored repositories (#{length(repos)}):")
 
     Enum.each(repos, fn repo ->
-      adapter.puts("  - #{repo}")
+      IO.puts("  - #{repo}")
     end)
 
     # Show configuration source
-    adapter.puts("\nConfiguration sources (in priority order):")
+    IO.puts("\nConfiguration sources (in priority order):")
 
     Repository.user_config_paths()
     |> Enum.with_index(1)
     |> Enum.each(fn {path, index} ->
       status = if File.exists?(path), do: "✓ EXISTS", else: "  missing"
-      adapter.puts("  #{index}. #{status} #{path}")
+      IO.puts("  #{index}. #{status} #{path}")
     end)
 
     # Show defaults
     defaults = Repository.default_repositories()
-    adapter.puts("\nDefault repositories (#{length(defaults)}):")
-    adapter.puts("  (used when no user configuration found)")
+    IO.puts("\nDefault repositories (#{length(defaults)}):")
+    IO.puts("  (used when no user configuration found)")
 
-    adapter.puts("\nTo customize:")
-    adapter.puts("  1. Run: ecosystem-manager init-config")
-    adapter.puts("  2. Edit: ~/.config/ecosystem-manager/repositories.txt")
-    adapter.puts("  3. Add one repository name per line")
+    IO.puts("\nTo customize:")
+    IO.puts("  1. Run: ecosystem-manager init-config")
+    IO.puts("  2. Edit: ~/.config/ecosystem-manager/repositories.txt")
+    IO.puts("  3. Add one repository name per line")
   end
 
-  defp init_config(adapter) do
-    adapter.puts("Initializing user configuration...")
+  defp init_config do
+    IO.puts("Initializing user configuration...")
 
     case Repository.create_example_config() do
       {:ok, example_file} ->
-        adapter.puts("✓ Created example configuration: #{example_file}")
+        IO.puts("✓ Created example configuration: #{example_file}")
 
         # Also create the actual config file if it doesn't exist
         config_dir = Repository.ensure_user_config_dir()
         config_file = Path.join(config_dir, "repositories.txt")
 
         if File.exists?(config_file) do
-          adapter.puts("✓ User configuration already exists: #{config_file}")
+          IO.puts("✓ User configuration already exists: #{config_file}")
         else
-          create_user_config_file(adapter, config_file)
+          create_user_config_file(config_file)
         end
 
       {:error, reason} ->
-        adapter.puts("✗ Failed to create example configuration: #{reason}")
+        IO.puts("✗ Failed to create example configuration: #{reason}")
     end
   end
 
-  defp create_user_config_file(adapter, config_file) do
+  defp create_user_config_file(config_file) do
     # Copy default repositories to user config
     default_content =
       Repository.default_repositories()
@@ -281,11 +264,11 @@ defmodule EcosystemManager.CLI do
 
     case File.write(config_file, default_content) do
       :ok ->
-        adapter.puts("✓ Created user configuration: #{config_file}")
-        adapter.puts("\nYou can now edit this file to customize your repository list.")
+        IO.puts("✓ Created user configuration: #{config_file}")
+        IO.puts("\nYou can now edit this file to customize your repository list.")
 
       {:error, reason} ->
-        adapter.puts("✗ Failed to create user configuration: #{reason}")
+        IO.puts("✗ Failed to create user configuration: #{reason}")
     end
   end
 end
