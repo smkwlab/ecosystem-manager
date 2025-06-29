@@ -76,7 +76,9 @@ defmodule EcosystemManager.CLI do
   defp continue_execute(%{command: unknown}) do
     IO.puts("Unknown command: #{unknown}")
     IO.puts("Run 'ecosystem-manager help' for usage information.")
-    System.halt(1)
+    
+    # Use exit instead of System.halt for testability
+    exit({:shutdown, 1})
   end
 
   defp execute_status(%{opts: opts, base_path: base_path}) do
