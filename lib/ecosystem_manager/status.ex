@@ -3,9 +3,9 @@ defmodule EcosystemManager.Status do
   Status command implementation with parallel processing.
   """
 
+  alias EcosystemManager.Config
   alias EcosystemManager.GitHub
   alias EcosystemManager.Repository
-  alias EcosystemManager.Config
 
   @doc "Get status of all repositories in parallel"
   def get_all_status(base_path, opts \\ []) do
