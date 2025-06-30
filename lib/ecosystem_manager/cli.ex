@@ -176,7 +176,7 @@ defmodule EcosystemManager.CLI do
         status          Show status of all repositories (default)
         config          Show current configuration
         repos           Show repository configuration and sources
-        workspace       Show workspace path (for use with cd command)
+        workspace       Show workspace path (useful for: cd $(ecosystem-manager workspace))
         init-config     Create example user configuration files
         help            Show this help message
 
