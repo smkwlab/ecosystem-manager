@@ -9,6 +9,12 @@ defmodule EcosystemManager.MixProject do
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       escript: [main_module: EcosystemManager.CLI, name: "ecosystem-manager"],
+      test_coverage: [
+        threshold: 90,
+        ignore_modules: [
+          EcosystemManager.UserConfig
+        ]
+      ],
       dialyzer: [
         plt_file: {:no_warn, "priv/plts/dialyzer.plt"},
         plt_add_apps: [:mix],
