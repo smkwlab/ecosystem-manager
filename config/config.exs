@@ -31,4 +31,10 @@ config :ecosystem_manager,
 
   # GitHub API settings
   github_api_base_url: "https://api.github.com",
-  default_include_github: true
+  default_include_github: true,
+
+  # Workspace path (can be overridden by user config)
+  workspace_path: nil,
+
+  # Repository list (can be overridden by user config)
+  repositories: nil

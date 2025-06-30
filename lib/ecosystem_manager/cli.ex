@@ -6,6 +6,7 @@ defmodule EcosystemManager.CLI do
   alias EcosystemManager.Config
   alias EcosystemManager.Repository
   alias EcosystemManager.Status
+  alias EcosystemManager.UserConfig
 
   def main(args) do
     args
@@ -73,10 +74,14 @@ defmodule EcosystemManager.CLI do
     init_config()
   end
 
+  defp continue_execute(%{command: "workspace"}) do
+    show_workspace_path()
+  end
+
   defp continue_execute(%{command: unknown}) do
     IO.puts("Unknown command: #{unknown}")
     IO.puts("Run 'ecosystem-manager help' for usage information.")
-    
+
     # Use exit instead of System.halt for testability
     exit({:shutdown, 1})
   end
@@ -128,10 +133,26 @@ defmodule EcosystemManager.CLI do
   defp maybe_add_filter(filters, _, _), do: filters
 
   defp get_base_path do
-    # Try to find the ecosystem root directory
-    current_dir = System.get_env("PWD") || File.cwd!()
+    # First check if workspace_path is configured
+    case Config.workspace_path() do
+      nil ->
+        # If not configured, fall back to finding ecosystem root
+        current_dir = System.get_env("PWD") || File.cwd!()
+        find_ecosystem_root(current_dir) || current_dir
 
-    find_ecosystem_root(current_dir) || current_dir
+      path ->
+        # Expand home directory if needed
+        expanded_path = Path.expand(path)
+
+        if File.dir?(expanded_path) do
+          expanded_path
+        else
+          IO.puts("Warning: Configured workspace_path does not exist: #{expanded_path}")
+          IO.puts("Falling back to current directory detection.")
+          current_dir = System.get_env("PWD") || File.cwd!()
+          find_ecosystem_root(current_dir) || current_dir
+        end
+    end
   end
 
   def find_ecosystem_root(dir) do
@@ -155,6 +176,7 @@ defmodule EcosystemManager.CLI do
         status          Show status of all repositories (default)
         config          Show current configuration
         repos           Show repository configuration and sources
+        workspace       Show workspace path (for use with cd command)
         init-config     Create example user configuration files
         help            Show this help message
 
@@ -171,6 +193,7 @@ defmodule EcosystemManager.CLI do
         ecosystem-manager status --long     # Show detailed status
         ecosystem-manager status --fast     # Quick status without GitHub API
         ecosystem-manager status --urgent-issues  # Filter urgent issues
+        cd $(ecosystem-manager workspace)   # Change to workspace directory
 
     PERFORMANCE:
         This Elixir version uses parallel processing to significantly improve
@@ -203,6 +226,8 @@ defmodule EcosystemManager.CLI do
 
     # Show current repositories
     repos = Repository.all_repositories()
+    configured_repos = Repository.get_configured_repositories()
+
     IO.puts("\nMonitored repositories (#{length(repos)}):")
 
     Enum.each(repos, fn repo ->
@@ -210,65 +235,49 @@ defmodule EcosystemManager.CLI do
     end)
 
     # Show configuration source
-    IO.puts("\nConfiguration sources (in priority order):")
+    IO.puts("\nConfiguration source:")
+    config_path = UserConfig.get_config_path()
 
-    Repository.user_config_paths()
-    |> Enum.with_index(1)
-    |> Enum.each(fn {path, index} ->
-      status = if File.exists?(path), do: "✓ EXISTS", else: "  missing"
-      IO.puts("  #{index}. #{status} #{path}")
-    end)
+    if File.exists?(config_path) do
+      if configured_repos do
+        IO.puts("  ✓ Using repositories from: #{config_path}")
+      else
+        IO.puts("  ✓ Config file exists: #{config_path}")
+        IO.puts("    (repositories not configured, using defaults)")
+      end
+    else
+      IO.puts("  - No config file: #{config_path}")
+      IO.puts("    (using default repositories)")
+    end
 
     # Show defaults
     defaults = Repository.default_repositories()
     IO.puts("\nDefault repositories (#{length(defaults)}):")
-    IO.puts("  (used when no user configuration found)")
+    IO.puts("  (used when repositories not configured)")
 
     IO.puts("\nTo customize:")
     IO.puts("  1. Run: ecosystem-manager init-config")
-    IO.puts("  2. Edit: ~/.config/ecosystem-manager/repositories.txt")
-    IO.puts("  3. Add one repository name per line")
+    IO.puts("  2. Edit: ~/.config/ecosystem-manager/config.exs")
+    IO.puts("  3. Add repositories: [...] to the configuration")
   end
 
   defp init_config do
     IO.puts("Initializing user configuration...")
 
-    case Repository.create_example_config() do
-      {:ok, example_file} ->
-        IO.puts("✓ Created example configuration: #{example_file}")
-
-        # Also create the actual config file if it doesn't exist
-        config_dir = Repository.ensure_user_config_dir()
-        config_file = Path.join(config_dir, "repositories.txt")
-
-        if File.exists?(config_file) do
-          IO.puts("✓ User configuration already exists: #{config_file}")
-        else
-          create_user_config_file(config_file)
-        end
+    # Create user config example
+    case UserConfig.create_example_config() do
+      {:ok, config_example} ->
+        IO.puts("✓ Created example configuration: #{config_example}")
+        IO.puts("  Copy to config.exs and customize your settings")
+        IO.puts("  Include repositories: [...] to override default repository list")
 
       {:error, reason} ->
-        IO.puts("✗ Failed to create example configuration: #{reason}")
+        IO.puts("✗ Failed to create config example: #{reason}")
     end
   end
 
-  defp create_user_config_file(config_file) do
-    # Copy default repositories to user config
-    default_content =
-      Repository.default_repositories()
-      |> Enum.join("\n")
-      |> then(
-        &("# EcosystemManager Repository Configuration\n# Edit this file to customize monitored repositories\n\n" <>
-            &1 <> "\n")
-      )
-
-    case File.write(config_file, default_content) do
-      :ok ->
-        IO.puts("✓ Created user configuration: #{config_file}")
-        IO.puts("\nYou can now edit this file to customize your repository list.")
-
-      {:error, reason} ->
-        IO.puts("✗ Failed to create user configuration: #{reason}")
-    end
+  defp show_workspace_path do
+    workspace_path = get_base_path()
+    IO.puts(workspace_path)
   end
 end

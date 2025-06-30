@@ -21,6 +21,37 @@ mix escript.build
 ./ecosystem-manager status
 ```
 
+## 設定
+
+### Workspace Path設定
+
+どのディレクトリからでもecosystem-managerを実行できるように、workspace pathを設定できます：
+
+1. **設定ファイルの作成**
+   ```bash
+   ./ecosystem-manager init-config
+   ```
+
+2. **設定ファイルの編集**
+   ```bash
+   # ~/.config/ecosystem-manager/config.exs を編集
+   vim ~/.config/ecosystem-manager/config.exs
+   ```
+
+3. **workspace_pathを設定**
+   ```elixir
+   import Config
+   
+   config :ecosystem_manager,
+     workspace_path: "~/SynologyDrive/semi/LaTeX/latex-ecosystem"
+   ```
+
+設定後は、どのディレクトリからでも実行可能：
+```bash
+cd /任意のディレクトリ
+ecosystem-manager status  # workspace_pathで指定したディレクトリで実行される
+```
+
 ## 使用方法
 
 ```bash
