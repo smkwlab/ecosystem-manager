@@ -106,8 +106,8 @@ defmodule EcosystemManager.GitHub do
   # Private functions
 
   defp gh_api_call(args) do
-    # In test environment, check for mock mode
-    if Application.get_env(:ecosystem_manager, :env) == :test and System.get_env("MOCK_GH_CLI") == "true" do
+    # Check for mock mode in test environment
+    if System.get_env("MOCK_GH_CLI") == "true" do
       mock_gh_response(args)
     else
       real_gh_api_call(args)
