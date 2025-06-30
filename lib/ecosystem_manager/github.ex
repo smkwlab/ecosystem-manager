@@ -107,7 +107,7 @@ defmodule EcosystemManager.GitHub do
 
   defp gh_api_call(args) do
     # In test environment, check for mock mode
-    if Mix.env() == :test and System.get_env("MOCK_GH_CLI") == "true" do
+    if Application.get_env(:ecosystem_manager, :env) == :test and System.get_env("MOCK_GH_CLI") == "true" do
       mock_gh_response(args)
     else
       real_gh_api_call(args)
