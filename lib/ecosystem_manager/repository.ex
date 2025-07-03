@@ -10,6 +10,7 @@ defmodule EcosystemManager.Repository do
     :branch,
     :changes,
     :last_commit,
+    :last_commit_timestamp,
     :issues,
     :pull_requests,
     :status
@@ -22,6 +23,7 @@ defmodule EcosystemManager.Repository do
           branch: String.t() | nil,
           changes: integer() | :missing,
           last_commit: String.t() | nil,
+          last_commit_timestamp: integer() | nil,
           issues: map() | nil,
           pull_requests: map() | nil,
           status: :ok | :error | :missing
@@ -101,6 +103,20 @@ defmodule EcosystemManager.Repository do
     end
   end
 
+  @doc "Get last commit timestamp for sorting"
+  def get_last_commit_timestamp(%__MODULE__{path: path}) do
+    case System.cmd("git", ["log", "-1", "--format=%ct"], cd: path, stderr_to_stdout: true) do
+      {timestamp, 0} ->
+        case String.trim(timestamp) |> Integer.parse() do
+          {ts, _} -> ts
+          _ -> 0
+        end
+
+      _ ->
+        0
+    end
+  end
+
   @doc "Update repository with git information"
   def fetch_git_info(repo) do
     if exists?(repo) do
@@ -108,7 +124,8 @@ defmodule EcosystemManager.Repository do
         repo
         | branch: get_branch(repo),
           changes: get_changes(repo),
-          last_commit: get_last_commit(repo)
+          last_commit: get_last_commit(repo),
+          last_commit_timestamp: get_last_commit_timestamp(repo)
       }
     else
       %{repo | status: :missing, changes: :missing}

@@ -42,11 +42,30 @@ defmodule EcosystemManager.Status do
   def format_status(repos, opts \\ []) do
     format = Keyword.get(opts, :format, Config.default_format())
     filters = Keyword.get(opts, :filters, [])
+    time_sort = Keyword.get(opts, :time_sort, false)
 
     repos
     |> apply_filters(filters)
+    |> maybe_sort_by_time(time_sort)
     |> format_output(format)
   end
+
+  @doc "Sort repositories by last commit time (newest first)"
+  def sort_repositories_by_time(repos) do
+    repos
+    |> Enum.sort_by(
+      fn repo ->
+        # repos without commits get 0 (go to end)
+        repo.last_commit_timestamp || 0
+      end,
+      # descending order (newest first)
+      :desc
+    )
+  end
+
+  # Sort by time if time_sort option is enabled
+  defp maybe_sort_by_time(repos, true), do: sort_repositories_by_time(repos)
+  defp maybe_sort_by_time(repos, false), do: repos
 
   # Private functions
 

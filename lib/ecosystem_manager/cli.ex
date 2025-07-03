@@ -24,12 +24,14 @@ defmodule EcosystemManager.CLI do
           urgent_issues: :boolean,
           with_prs: :boolean,
           needs_review: :boolean,
-          max_concurrency: :integer
+          max_concurrency: :integer,
+          time_sort: :boolean
         ],
         aliases: [
           h: :help,
           l: :long,
-          f: :fast
+          f: :fast,
+          t: :time_sort
         ]
       )
 
@@ -98,7 +100,8 @@ defmodule EcosystemManager.CLI do
 
     format_opts = [
       format: if(opts[:long], do: :long, else: :compact),
-      filters: build_filters(opts)
+      filters: build_filters(opts),
+      time_sort: opts[:time_sort] || false
     ]
 
     # Show timing information
