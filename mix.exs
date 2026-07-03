@@ -5,7 +5,9 @@ defmodule EcosystemManager.MixProject do
     [
       app: :ecosystem_manager,
       version: "0.1.0",
-      elixir: "~> 1.18",
+      # Keep in sync with the LTS Elixir lane of the org-standard CI
+      # (smkwlab/.github elixir-ci.yml)
+      elixir: "~> 1.17",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       escript: [main_module: EcosystemManager.CLI, name: "ecosystem-manager"],
