@@ -213,10 +213,13 @@ defmodule EcosystemManager.GitHub do
     end)
   end
 
-  # Test helpers - exposed only for testing
+  # Test helpers - compiled only in the :test environment, so they never
+  # exist in production builds
   if Mix.env() == :test do
+    @doc false
     def test_count_by_labels(issues, target_labels), do: count_by_labels(issues, target_labels)
 
+    @doc false
     def test_process_issues_success(issues) do
       total = length(issues)
       bugs = count_by_labels(issues, ~w[bug error critical regression])
@@ -225,6 +228,7 @@ defmodule EcosystemManager.GitHub do
       %{total: total, bugs: bugs, enhancements: enhancements, urgent: urgent}
     end
 
+    @doc false
     def test_process_prs_success(prs) do
       total = length(prs)
       drafts = Enum.count(prs, & &1["isDraft"])

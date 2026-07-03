@@ -39,6 +39,7 @@ defmodule EcosystemManager.Repository do
     "sotsuron-report-template",
     "wr-template",
     "ise-report-template",
+    "poster-template",
     "latex-release-action",
     "thesis-management-tools",
     "thesis-student-registry",
