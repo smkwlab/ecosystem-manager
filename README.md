@@ -128,33 +128,31 @@ config :ecosystem_manager,
 
 ### リポジトリ設定
 
-監視対象のリポジトリは、ユーザー設定ファイルで指定できます：
+監視対象のリポジトリは **workspace 直下から自動検出** されます。ハードコードされた
+一覧は持たず、以下の順で解決します：
+
+1. ユーザー設定の `repositories:`（明示指定があれば最優先）
+2. 自動検出：workspace 直下の Git リポジトリのうち、エコシステム org
+   （`ecosystem_org:` 設定、無ければ workspace 自身の `origin` owner から導出）
+   に属するもの。`.`（workspace 自身）は常に含み、`*-test` は除外
 
 ```bash
-# 設定ファイル初期化
-./ecosystem-manager init-config
-
-# 現在の設定確認
+# 現在の対象リポジトリと解決元を確認
 ./ecosystem-manager repos
 
-# 設定ファイル編集
-$EDITOR ~/.config/ecosystem-manager/repositories.txt
+# 自動検出結果をユーザー設定に書き出す（一覧を固定したい場合）
+./ecosystem-manager repos --sync
 ```
 
-**設定ファイルの場所（優先順）**:
-1. `~/.config/ecosystem-manager/repositories.txt` (推奨)
-2. `~/.ecosystem-manager-repositories`
-3. `~/.ecosystem-repositories.txt`
-4. `./.ecosystem-repositories` (プロジェクト固有)
-
-**設定ファイル例**:
-```bash
-# コメント行
-.
-texlive-ja-textlint
-latex-environment
-my-custom-template
-```
+`repos --sync` は検出結果を `~/.config/ecosystem-manager/config.exs` の
+`repositories:` に書き込みます（`workspace_path` など既存の設定は保持）。
+`workspace_path` が未設定なら、検出に使った workspace パスを併せて記録するため、
+workspace ルートで一度 `repos --sync` すれば、どのディレクトリからでも使える
+config.exs がそのまま出来上がります。
+エコシステム外のリポジトリ（無関係なプロジェクト等）が混じっている場合は、
+書き出された一覧から手動で削除してください。新しいリポジトリを workspace に
+追加したら `repos --sync` を再実行するか、`repositories:` を設定から外して
+自動検出に任せます。
 
 ## アーキテクチャ
 

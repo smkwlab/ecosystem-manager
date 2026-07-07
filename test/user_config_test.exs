@@ -219,6 +219,9 @@ defmodule EcosystemManager.UserConfigTest do
     end
   end
 
+  defp restore_env(key, nil), do: Application.delete_env(:ecosystem_manager, key)
+  defp restore_env(key, value), do: Application.put_env(:ecosystem_manager, key, value)
+
   # Runs `fun` with ECOSYSTEM_MANAGER_CONFIG_DIR pointing at a fresh
   # temporary directory so UserConfig never touches the developer's real
   # ~/.config/ecosystem-manager. Overriding HOME does not work for this:
@@ -292,6 +295,110 @@ defmodule EcosystemManager.UserConfigTest do
           {:ok, _} ->
             flunk("Expected error when config file already exists")
         end
+      end)
+    end
+  end
+
+  describe "set_repositories/1" do
+    setup do
+      # set_repositories + load/0 mutate the global application env; snapshot
+      # and restore it so these tests do not leak into other test files.
+      original_workspace = Application.get_env(:ecosystem_manager, :workspace_path)
+      original_repos = Application.get_env(:ecosystem_manager, :repositories)
+
+      on_exit(fn ->
+        restore_env(:workspace_path, original_workspace)
+        restore_env(:repositories, original_repos)
+      end)
+    end
+
+    test "writes a repositories list that reloads correctly" do
+      with_temp_config_dir(fn config_dir ->
+        assert {:ok, config_path} = UserConfig.set_repositories([".", "aldc", "wr-template"])
+        assert config_path == Path.join(config_dir, "config.exs")
+
+        content = File.read!(config_path)
+        assert String.contains?(content, "\nimport Config\n")
+        assert String.contains?(content, "repositories:")
+        assert String.contains?(content, "aldc")
+
+        # The generated file must be valid and round-trip through the loader
+        assert UserConfig.load() == :ok
+
+        assert Application.get_env(:ecosystem_manager, :repositories) == [
+                 ".",
+                 "aldc",
+                 "wr-template"
+               ]
+      end)
+    end
+
+    test "preserves existing settings such as workspace_path" do
+      with_temp_config_dir(fn config_dir ->
+        config_path = Path.join(config_dir, "config.exs")
+
+        File.write!(config_path, """
+        import Config
+
+        config :ecosystem_manager,
+          workspace_path: "/existing/workspace",
+          repositories: ["old-repo"]
+        """)
+
+        assert {:ok, ^config_path} = UserConfig.set_repositories([".", "aldc"])
+
+        content = File.read!(config_path)
+        assert String.contains?(content, ~s(workspace_path: "/existing/workspace"))
+        assert String.contains?(content, "aldc")
+        refute String.contains?(content, "old-repo")
+
+        assert UserConfig.load() == :ok
+        assert Application.get_env(:ecosystem_manager, :workspace_path) == "/existing/workspace"
+        assert Application.get_env(:ecosystem_manager, :repositories) == [".", "aldc"]
+      end)
+    end
+
+    test "returns an error when the existing config is invalid" do
+      with_temp_config_dir(fn config_dir ->
+        config_path = Path.join(config_dir, "config.exs")
+        File.write!(config_path, "this is not valid elixir {{")
+
+        assert {:error, message} = UserConfig.set_repositories([".", "aldc"])
+        assert message =~ "configuration"
+      end)
+    end
+
+    test "seeds workspace_path from :default_workspace_path when config is fresh" do
+      with_temp_config_dir(fn _config_dir ->
+        assert {:ok, _path} =
+                 UserConfig.set_repositories([".", "aldc"],
+                   default_workspace_path: "/detected/workspace"
+                 )
+
+        assert UserConfig.load() == :ok
+        assert Application.get_env(:ecosystem_manager, :workspace_path) == "/detected/workspace"
+        assert Application.get_env(:ecosystem_manager, :repositories) == [".", "aldc"]
+      end)
+    end
+
+    test "does not override an existing workspace_path" do
+      with_temp_config_dir(fn config_dir ->
+        config_path = Path.join(config_dir, "config.exs")
+
+        File.write!(config_path, """
+        import Config
+
+        config :ecosystem_manager,
+          workspace_path: "/existing/workspace"
+        """)
+
+        assert {:ok, _path} =
+                 UserConfig.set_repositories([".", "aldc"],
+                   default_workspace_path: "/detected/workspace"
+                 )
+
+        assert UserConfig.load() == :ok
+        assert Application.get_env(:ecosystem_manager, :workspace_path) == "/existing/workspace"
       end)
     end
   end

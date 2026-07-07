@@ -36,5 +36,10 @@ config :ecosystem_manager,
   # Workspace path (can be overridden by user config)
   workspace_path: nil,
 
-  # Repository list (can be overridden by user config)
-  repositories: nil
+  # Repository list (can be overridden by user config).
+  # When nil, repositories are auto-discovered under the workspace.
+  repositories: nil,
+
+  # Ecosystem organization used to filter auto-discovered repositories.
+  # When nil, discovery infers it from the workspace's own origin remote.
+  ecosystem_org: nil

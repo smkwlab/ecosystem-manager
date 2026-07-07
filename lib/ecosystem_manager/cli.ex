@@ -25,7 +25,8 @@ defmodule EcosystemManager.CLI do
           with_prs: :boolean,
           needs_review: :boolean,
           max_concurrency: :integer,
-          time_sort: :boolean
+          time_sort: :boolean,
+          sync: :boolean
         ],
         aliases: [
           h: :help,
@@ -68,8 +69,12 @@ defmodule EcosystemManager.CLI do
     show_config()
   end
 
-  defp continue_execute(%{command: "repos"}) do
-    show_repositories()
+  defp continue_execute(%{command: "repos", opts: opts, base_path: base_path}) do
+    if opts[:sync] do
+      sync_repositories(base_path)
+    else
+      show_repositories(base_path)
+    end
   end
 
   defp continue_execute(%{command: "init-config"}) do
@@ -179,6 +184,8 @@ defmodule EcosystemManager.CLI do
         status          Show status of all repositories (default)
         config          Show current configuration
         repos           Show repository configuration and sources
+        repos --sync    Auto-discover ecosystem repositories and write the
+                        list into the user config (~/.config/ecosystem-manager/config.exs)
         workspace       Show workspace path (useful for: cd $(ecosystem-manager workspace))
         init-config     Create example user configuration files
         help            Show this help message
@@ -223,12 +230,12 @@ defmodule EcosystemManager.CLI do
     IO.puts("Example file: config/config.example.exs")
   end
 
-  defp show_repositories do
+  defp show_repositories(base_path) do
     IO.puts("Repository Configuration")
     IO.puts("=======================")
 
     # Show current repositories
-    repos = Repository.all_repositories()
+    repos = Repository.all_repositories(base_path)
     configured_repos = Repository.get_configured_repositories()
 
     IO.puts("\nMonitored repositories (#{length(repos)}):")
@@ -241,27 +248,38 @@ defmodule EcosystemManager.CLI do
     IO.puts("\nConfiguration source:")
     config_path = UserConfig.get_config_path()
 
-    if File.exists?(config_path) do
-      if configured_repos do
+    cond do
+      configured_repos ->
         IO.puts("  ✓ Using repositories from: #{config_path}")
-      else
-        IO.puts("  ✓ Config file exists: #{config_path}")
-        IO.puts("    (repositories not configured, using defaults)")
-      end
-    else
-      IO.puts("  - No config file: #{config_path}")
-      IO.puts("    (using default repositories)")
+
+      File.exists?(config_path) ->
+        IO.puts("  ✓ Config file exists but has no repositories list: #{config_path}")
+        IO.puts("    (auto-discovered under #{base_path})")
+
+      true ->
+        IO.puts("  - No config file: #{config_path}")
+        IO.puts("    (auto-discovered under #{base_path})")
     end
 
-    # Show defaults
-    defaults = Repository.default_repositories()
-    IO.puts("\nDefault repositories (#{length(defaults)}):")
-    IO.puts("  (used when repositories not configured)")
+    IO.puts("\nTo pin this list into your user config:")
+    IO.puts("  ecosystem-manager repos --sync")
+  end
 
-    IO.puts("\nTo customize:")
-    IO.puts("  1. Run: ecosystem-manager init-config")
-    IO.puts("  2. Edit: ~/.config/ecosystem-manager/config.exs")
-    IO.puts("  3. Add repositories: [...] to the configuration")
+  defp sync_repositories(base_path) do
+    repos = Repository.discover(base_path)
+
+    case UserConfig.set_repositories(repos, default_workspace_path: base_path) do
+      {:ok, path} ->
+        IO.puts("✓ Wrote #{length(repos)} repositories to #{path}")
+        IO.puts("  workspace_path: #{base_path}\n")
+        Enum.each(repos, fn repo -> IO.puts("  - #{repo}") end)
+        IO.puts("\nReview the list and remove any entries that are not part of the")
+        IO.puts("ecosystem (unrelated projects, one-off clones, etc.).")
+
+      {:error, reason} ->
+        IO.puts("✗ Failed to write repositories to config: #{reason}")
+        exit({:shutdown, 1})
+    end
   end
 
   defp init_config do

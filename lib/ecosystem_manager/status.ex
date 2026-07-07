@@ -12,7 +12,7 @@ defmodule EcosystemManager.Status do
     max_concurrency = Keyword.get(opts, :max_concurrency, Config.default_concurrency())
     include_github = Keyword.get(opts, :include_github, Config.default_include_github())
 
-    Repository.all_repositories()
+    Repository.all_repositories(base_path)
     |> Enum.map(&Repository.new(&1, base_path))
     |> Task.async_stream(&fetch_repository_info(&1, include_github),
       max_concurrency: max_concurrency,

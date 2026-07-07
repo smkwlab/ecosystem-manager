@@ -173,6 +173,78 @@ defmodule EcosystemManager.UserConfig do
     end
   end
 
+  @doc """
+  Write the given repository list into the user config file's
+  `:repositories` setting, preserving any other existing
+  `:ecosystem_manager` settings (such as `workspace_path`).
+
+  Options:
+
+    * `:default_workspace_path` - when set and the existing config has no
+      `:workspace_path`, this value is recorded as `workspace_path` so a fresh
+      config generated from the workspace root is immediately usable from any
+      directory. An existing `:workspace_path` is never overwritten.
+
+  Comments in the existing file are not preserved. Returns `{:ok, path}` on
+  success or `{:error, reason}` if the existing file cannot be read or the new
+  file cannot be written.
+  """
+  def set_repositories(repositories, opts \\ []) when is_list(repositories) do
+    config_path = get_config_path()
+
+    with {:ok, existing} <- read_existing_settings(config_path),
+         :ok <- ensure_config_dir(get_config_dir()) do
+      merged =
+        existing
+        |> maybe_put_workspace_path(opts[:default_workspace_path])
+        |> Keyword.put(:repositories, repositories)
+
+      case File.write(config_path, render_config(merged)) do
+        :ok -> {:ok, config_path}
+        {:error, reason} -> {:error, "Failed to write config: #{:file.format_error(reason)}"}
+      end
+    end
+  end
+
+  defp maybe_put_workspace_path(settings, nil), do: settings
+
+  defp maybe_put_workspace_path(settings, path) do
+    if Keyword.has_key?(settings, :workspace_path) do
+      settings
+    else
+      Keyword.put(settings, :workspace_path, path)
+    end
+  end
+
+  defp read_existing_settings(config_path) do
+    if File.exists?(config_path) do
+      try do
+        data = Config.Reader.read!(config_path)
+        {:ok, Keyword.new(data[:ecosystem_manager] || [])}
+      rescue
+        e -> {:error, "Invalid existing configuration file: #{Exception.message(e)}"}
+      end
+    else
+      {:ok, []}
+    end
+  end
+
+  defp render_config(settings) do
+    body =
+      Enum.map_join(settings, ",\n", fn {key, value} ->
+        "  #{key}: #{inspect(value, limit: :infinity)}"
+      end)
+
+    """
+    # EcosystemManager User Configuration
+    # The repositories list is managed by `ecosystem-manager repos --sync`.
+
+    import Config
+
+    config :ecosystem_manager,
+    """ <> body <> "\n"
+  end
+
   defp ensure_config_dir(config_dir) do
     case File.mkdir_p(config_dir) do
       :ok -> :ok

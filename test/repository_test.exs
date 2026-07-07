@@ -4,6 +4,24 @@ defmodule EcosystemManager.RepositoryTest do
 
   alias EcosystemManager.Repository
 
+  # The application loads the developer's real user config at boot, which may
+  # set :repositories / :ecosystem_org. Clear them so discovery-based tests do
+  # not depend on the host machine's configuration.
+  setup do
+    original_repos = Application.get_env(:ecosystem_manager, :repositories)
+    original_org = Application.get_env(:ecosystem_manager, :ecosystem_org)
+    Application.delete_env(:ecosystem_manager, :repositories)
+    Application.delete_env(:ecosystem_manager, :ecosystem_org)
+
+    on_exit(fn ->
+      restore_env(:repositories, original_repos)
+      restore_env(:ecosystem_org, original_org)
+    end)
+  end
+
+  defp restore_env(key, nil), do: Application.delete_env(:ecosystem_manager, key)
+  defp restore_env(key, value), do: Application.put_env(:ecosystem_manager, key, value)
+
   describe "new function" do
     test "creates repository struct for current directory" do
       repo = Repository.new(".", "/test/path")
@@ -168,13 +186,23 @@ defmodule EcosystemManager.RepositoryTest do
   end
 
   describe "all_repositories function" do
-    test "returns list of known repositories" do
-      repos = Repository.all_repositories()
-      assert is_list(repos)
-      assert length(repos) > 0
-      assert "." in repos
-      assert "latex-environment" in repos
-      assert "sotsuron-template" in repos
+    test "discovers git repositories under the workspace" do
+      temp_dir = System.tmp_dir!()
+      workspace = Path.join(temp_dir, "all_repos_#{:rand.uniform(100_000)}")
+      File.mkdir_p!(Path.join(workspace, "latex-environment"))
+      System.cmd("git", ["init"], cd: Path.join(workspace, "latex-environment"))
+      File.mkdir_p!(Path.join(workspace, "sotsuron-template"))
+      System.cmd("git", ["init"], cd: Path.join(workspace, "sotsuron-template"))
+
+      try do
+        repos = Repository.all_repositories(workspace)
+        assert is_list(repos)
+        assert "." in repos
+        assert "latex-environment" in repos
+        assert "sotsuron-template" in repos
+      after
+        File.rm_rf!(workspace)
+      end
     end
   end
 
@@ -259,29 +287,32 @@ defmodule EcosystemManager.RepositoryTest do
     end
 
     test "all_repositories function consistency" do
-      repos1 = Repository.all_repositories()
-      repos2 = Repository.all_repositories()
+      temp_dir = System.tmp_dir!()
+      workspace = Path.join(temp_dir, "consistency_#{:rand.uniform(100_000)}")
 
-      # Should be consistent across calls
-      assert repos1 == repos2
-
-      # Should contain expected core repositories
-      expected_repos = [
-        ".",
-        "texlive-ja-textlint",
-        "latex-environment",
-        "sotsuron-template",
-        "thesis-management-tools"
-      ]
-
-      for expected <- expected_repos do
-        assert expected in repos1
+      for name <- ["texlive-ja-textlint", "latex-environment", "sotsuron-template"] do
+        repo_path = Path.join(workspace, name)
+        File.mkdir_p!(repo_path)
+        System.cmd("git", ["init"], cd: repo_path)
       end
 
-      # Should be a reasonable number of repositories (generous upper bound
-      # so the test does not break as the ecosystem grows)
-      assert length(repos1) > 5
-      assert length(repos1) < 50
+      try do
+        repos1 = Repository.all_repositories(workspace)
+        repos2 = Repository.all_repositories(workspace)
+
+        # Should be consistent across calls
+        assert repos1 == repos2
+
+        # Should contain the workspace root plus discovered repositories
+        assert "." in repos1
+        assert "latex-environment" in repos1
+        assert "sotsuron-template" in repos1
+
+        # "." plus the three created repositories
+        assert length(repos1) == 4
+      after
+        File.rm_rf!(workspace)
+      end
     end
   end
 

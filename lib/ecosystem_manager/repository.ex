@@ -29,28 +29,110 @@ defmodule EcosystemManager.Repository do
           status: :ok | :error | :missing
         }
 
-  @default_repositories [
-    ".",
-    "texlive-ja-textlint",
-    "latex-environment",
-    "aldc",
-    "sotsuron-template",
-    "latex-template",
-    "sotsuron-report-template",
-    "wr-template",
-    "ise-report-template",
-    "poster-template",
-    "latex-release-action",
-    "thesis-management-tools",
-    "thesis-student-registry",
-    "ai-academic-paper-reviewer",
-    "ai-reviewer"
-  ]
-
-  @doc "Get list of all repositories with precedence: config > defaults"
-  def all_repositories do
-    get_configured_repositories() || @default_repositories
+  @doc """
+  Get the list of ecosystem repositories with precedence:
+  explicit config (`:repositories`) > auto-discovery under `base_path`.
+  """
+  def all_repositories(base_path) do
+    get_configured_repositories() || discover(base_path)
   end
+
+  @doc """
+  Discover ecosystem repositories under `base_path`.
+
+  Scans the immediate subdirectories of `base_path` for Git repositories and
+  returns their names, always including `"."` for the workspace root itself.
+
+  When the ecosystem organization can be determined (an explicit
+  `:ecosystem_org` config value, otherwise the `origin` owner of `base_path`
+  itself), only subdirectories whose `origin` remote belongs to that
+  organization are included; this keeps unrelated personal clones out of the
+  list. Directories whose name ends in `-test` are treated as test fixtures
+  and excluded.
+  """
+  def discover(base_path) do
+    org = ecosystem_org(base_path)
+
+    discovered =
+      case File.ls(base_path) do
+        {:ok, entries} -> entries
+        {:error, _} -> []
+      end
+      |> Enum.filter(&ecosystem_member?(&1, Path.join(base_path, &1), org))
+      |> Enum.sort()
+
+    ["." | discovered]
+  end
+
+  defp ecosystem_member?(name, path, org) do
+    git_repo?(path) and not test_fixture?(name) and org_match?(path, org)
+  end
+
+  defp git_repo?(path) do
+    File.dir?(path) and File.dir?(Path.join(path, ".git"))
+  end
+
+  defp test_fixture?(name), do: String.ends_with?(name, "-test")
+
+  defp org_match?(_path, nil), do: true
+  defp org_match?(path, org), do: origin_owner(path) == org
+
+  @doc """
+  Determine the ecosystem organization for `base_path`.
+
+  Uses the `:ecosystem_org` config value when set, otherwise falls back to the
+  `origin` remote owner of `base_path` itself. Returns nil when neither is
+  available, in which case discovery applies no organization filter.
+  """
+  def ecosystem_org(base_path) do
+    EcosystemManager.Config.ecosystem_org() || origin_owner(base_path)
+  end
+
+  @doc "Return the owner of a repository's `origin` remote, or nil."
+  def origin_owner(path) do
+    case System.cmd("git", ["-C", path, "remote", "get-url", "origin"], stderr_to_stdout: true) do
+      {url, 0} -> parse_owner(String.trim(url))
+      _ -> nil
+    end
+  rescue
+    # System.cmd raises when git is unavailable or the path is invalid
+    _ -> nil
+  end
+
+  @doc """
+  Parse the owner (organization or user) from a Git remote URL.
+
+  Handles the common GitHub URL shapes and returns nil for anything that does
+  not contain an `owner/repo` pair.
+
+  ## Examples
+
+      iex> EcosystemManager.Repository.parse_owner("git@github.com:smkwlab/aldc.git")
+      "smkwlab"
+
+      iex> EcosystemManager.Repository.parse_owner("https://github.com/smkwlab/aldc.git")
+      "smkwlab"
+
+      iex> EcosystemManager.Repository.parse_owner("ssh://git@github.com/smkwlab/aldc.git")
+      "smkwlab"
+
+      iex> EcosystemManager.Repository.parse_owner("not-a-url")
+      nil
+  """
+  def parse_owner(url) when is_binary(url) do
+    segments =
+      url
+      |> String.replace(~r/\.git\z/, "")
+      |> String.trim_trailing("/")
+      |> String.split(~r{[/:]}, trim: true)
+
+    case Enum.take(segments, -2) do
+      [owner, _repo] -> if owner =~ ~r/\./, do: nil, else: owner
+      _ -> nil
+    end
+  end
+
+  def parse_owner(_), do: nil
 
   @doc "Create a new repository struct"
   def new(name, base_path) do
@@ -62,13 +144,10 @@ defmodule EcosystemManager.Repository do
     }
   end
 
-  @doc "Get configured repositories from application config"
+  @doc "Get configured repositories from application config (nil when unset)"
   def get_configured_repositories do
     EcosystemManager.Config.repositories()
   end
-
-  @doc "Get default repositories list"
-  def default_repositories, do: @default_repositories
 
   @doc "Check if repository exists"
   def exists?(%__MODULE__{path: path}) do

@@ -85,6 +85,14 @@ defmodule EcosystemManager.Config do
   end
 
   @doc """
+  Get the ecosystem organization used to filter auto-discovered repositories.
+  Returns nil if not configured (discovery then infers it from the workspace).
+  """
+  def ecosystem_org do
+    Application.get_env(:ecosystem_manager, :ecosystem_org)
+  end
+
+  @doc """
   Get all configuration as a keyword list.
   """
   def all do
@@ -99,7 +107,8 @@ defmodule EcosystemManager.Config do
       github_api_base_url: github_api_base_url(),
       default_include_github: default_include_github(),
       workspace_path: workspace_path(),
-      repositories: repositories()
+      repositories: repositories(),
+      ecosystem_org: ecosystem_org()
     ]
   end
 end
