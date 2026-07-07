@@ -7,6 +7,7 @@ defmodule EcosystemManager.CLI do
   alias EcosystemManager.Repository
   alias EcosystemManager.Status
   alias EcosystemManager.UserConfig
+  alias EcosystemManager.Workspace
 
   def main(args) do
     args
@@ -26,13 +27,18 @@ defmodule EcosystemManager.CLI do
           needs_review: :boolean,
           max_concurrency: :integer,
           time_sort: :boolean,
-          sync: :boolean
+          sync: :boolean,
+          workspace: :string,
+          name: :string,
+          all: :boolean,
+          list: :boolean
         ],
         aliases: [
           h: :help,
           l: :long,
           f: :fast,
-          t: :time_sort
+          t: :time_sort,
+          w: :workspace
         ]
       )
 
@@ -45,7 +51,7 @@ defmodule EcosystemManager.CLI do
     %{
       command: command,
       opts: opts,
-      base_path: get_base_path()
+      base_path: resolve_base_path(opts)
     }
   end
 
@@ -71,7 +77,7 @@ defmodule EcosystemManager.CLI do
 
   defp continue_execute(%{command: "repos", opts: opts, base_path: base_path}) do
     if opts[:sync] do
-      sync_repositories(base_path)
+      sync_repositories(opts)
     else
       show_repositories(base_path)
     end
@@ -81,8 +87,12 @@ defmodule EcosystemManager.CLI do
     init_config()
   end
 
-  defp continue_execute(%{command: "workspace"}) do
-    show_workspace_path()
+  defp continue_execute(%{command: "workspace", opts: opts, base_path: base_path}) do
+    if opts[:list] do
+      show_workspace_list()
+    else
+      IO.puts(base_path)
+    end
   end
 
   defp continue_execute(%{command: unknown}) do
@@ -94,10 +104,34 @@ defmodule EcosystemManager.CLI do
   end
 
   defp execute_status(%{opts: opts, base_path: base_path}) do
-    IO.puts("Repository Status Overview")
-    IO.puts("")
+    if opts[:all] do
+      execute_status_all(opts)
+    else
+      IO.puts("Repository Status Overview")
+      IO.puts("")
+      render_status(base_path, opts)
+    end
+  end
 
-    # Configure options
+  defp execute_status_all(opts) do
+    case Workspace.list() do
+      [] ->
+        IO.puts("Repository Status Overview")
+        IO.puts("(no workspaces configured; showing the current directory)")
+        IO.puts("")
+        render_status(current_dir(), opts)
+
+      workspaces ->
+        IO.puts("Repository Status Overview (all workspaces)")
+
+        Enum.each(workspaces, fn ws ->
+          IO.puts("\n== #{ws.name} (#{ws.path}) ==\n")
+          render_status(ws.path, opts)
+        end)
+    end
+  end
+
+  defp render_status(base_path, opts) do
     status_opts = [
       include_github: !opts[:fast],
       max_concurrency: opts[:max_concurrency] || 8
@@ -109,20 +143,12 @@ defmodule EcosystemManager.CLI do
       time_sort: opts[:time_sort] || false
     ]
 
-    # Show timing information
     start_time = System.monotonic_time(:millisecond)
-
-    # Get status
     repos = Status.get_all_status(base_path, status_opts)
+    elapsed = System.monotonic_time(:millisecond) - start_time
 
-    end_time = System.monotonic_time(:millisecond)
-    elapsed = end_time - start_time
+    IO.puts(Status.format_status(repos, format_opts))
 
-    # Format and display
-    output = Status.format_status(repos, format_opts)
-    IO.puts(output)
-
-    # Show performance info
     if opts[:fast] do
       IO.puts("\n(Fast mode - GitHub API calls skipped)")
     end
@@ -140,37 +166,60 @@ defmodule EcosystemManager.CLI do
   defp maybe_add_filter(filters, true, filter), do: [filter | filters]
   defp maybe_add_filter(filters, _, _), do: filters
 
-  defp get_base_path do
-    # First check if workspace_path is configured
-    case Config.workspace_path() do
+  # Resolve the workspace base path for this invocation:
+  #   --workspace NAME    -> that registered workspace (error if unknown)
+  #   otherwise           -> the workspace containing the current directory,
+  #                          the single configured workspace, or the current
+  #                          directory as a last resort.
+  defp resolve_base_path(opts) do
+    dir = current_dir()
+
+    case Workspace.resolve(opts[:workspace], dir) do
+      {:ok, ws} -> validate_workspace_path(ws.path, dir)
+      {:error, reason} -> abort(reason)
+      :none -> dir
+    end
+  end
+
+  defp current_dir, do: System.get_env("PWD") || File.cwd!()
+
+  # Base path for `repos --sync`: register the current directory's workspace.
+  # With --workspace NAME, re-sync that registered workspace instead. Unlike
+  # resolve_base_path/1 there is no single-workspace fallback, so syncing from a
+  # new ecosystem registers that ecosystem rather than an existing workspace.
+  defp sync_base_path(opts) do
+    dir = current_dir()
+
+    case opts[:workspace] do
       nil ->
-        # If not configured, fall back to finding ecosystem root
-        current_dir = System.get_env("PWD") || File.cwd!()
-        find_ecosystem_root(current_dir) || current_dir
+        case Workspace.containing(dir) do
+          nil -> {dir, nil}
+          ws -> {ws.path, ws.name}
+        end
 
-      path ->
-        # Expand home directory if needed
-        expanded_path = Path.expand(path)
-
-        if File.dir?(expanded_path) do
-          expanded_path
-        else
-          IO.puts("Warning: Configured workspace_path does not exist: #{expanded_path}")
-          IO.puts("Falling back to current directory detection.")
-          current_dir = System.get_env("PWD") || File.cwd!()
-          find_ecosystem_root(current_dir) || current_dir
+      name ->
+        case Workspace.resolve(name, dir) do
+          {:ok, ws} -> {ws.path, ws.name}
+          {:error, reason} -> abort(reason)
         end
     end
   end
 
-  def find_ecosystem_root(dir) do
-    ecosystem_marker = Path.join(dir, "ecosystem-manager.sh")
+  defp validate_workspace_path(path, current_dir) do
+    expanded = Path.expand(path)
 
-    cond do
-      File.exists?(ecosystem_marker) -> dir
-      dir == "/" -> nil
-      true -> find_ecosystem_root(Path.dirname(dir))
+    if File.dir?(expanded) do
+      expanded
+    else
+      IO.puts("Warning: workspace path does not exist: #{expanded}")
+      IO.puts("Falling back to the current directory.")
+      current_dir
     end
+  end
+
+  defp abort(message) do
+    IO.puts(:stderr, message)
+    exit({:shutdown, 1})
   end
 
   defp show_help do
@@ -181,28 +230,34 @@ defmodule EcosystemManager.CLI do
         ecosystem-manager [COMMAND] [OPTIONS]
 
     COMMANDS:
-        status          Show status of all repositories (default)
-        config          Show current configuration
-        repos           Show repository configuration and sources
-        repos --sync    Auto-discover ecosystem repositories and write the
-                        list into the user config (~/.config/ecosystem-manager/config.exs)
-        workspace       Show workspace path (useful for: cd $(ecosystem-manager workspace))
-        init-config     Create example user configuration files
-        help            Show this help message
+        status            Show status of all repositories (default)
+        config            Show current configuration
+        repos             Show repository configuration and sources
+        repos --sync      Auto-discover ecosystem repositories, write the list
+                          into the user config and register the workspace
+        workspace         Show the resolved workspace path
+        workspace --list  List all configured workspaces
+        init-config       Create example user configuration files
+        help              Show this help message
 
     STATUS OPTIONS:
         -l, --long             Show detailed status with full information
         -f, --fast             Fast mode - skip GitHub API calls
+        --all                  Show every configured workspace (grouped)
         --urgent-issues        Show only repositories with urgent issues
         --with-prs            Show only repositories with open PRs
         --needs-review        Show only repositories with PRs needing review
         --max-concurrency N   Maximum parallel operations (default: 8)
 
+    WORKSPACE OPTIONS:
+        -w, --workspace NAME   Operate on the named workspace (see workspace --list)
+
     EXAMPLES:
         ecosystem-manager                    # Show compact status
         ecosystem-manager status --long     # Show detailed status
         ecosystem-manager status --fast     # Quick status without GitHub API
-        ecosystem-manager status --urgent-issues  # Filter urgent issues
+        ecosystem-manager status --all      # Status across all workspaces
+        ecosystem-manager status -w dns     # Status of the "dns" workspace
         cd $(ecosystem-manager workspace)   # Change to workspace directory
 
     PERFORMANCE:
@@ -265,21 +320,39 @@ defmodule EcosystemManager.CLI do
     IO.puts("  ecosystem-manager repos --sync")
   end
 
-  defp sync_repositories(base_path) do
+  defp sync_repositories(opts) do
+    {base_path, resolved_name} = sync_base_path(opts)
+    name = opts[:name] || resolved_name || Path.basename(base_path)
+
+    unless Workspace.valid_name?(name) do
+      abort(
+        "Invalid workspace name #{inspect(name)}: use letters, digits, '-' or '_' (pass --name to override)."
+      )
+    end
+
     repos = Repository.discover(base_path)
 
-    case UserConfig.set_repositories(repos, default_workspace_path: base_path) do
-      {:ok, path} ->
-        IO.puts("✓ Wrote #{length(repos)} repositories to #{path}")
-        IO.puts("  workspace_path: #{base_path}\n")
+    case UserConfig.sync_workspace(name, base_path, repos) do
+      {:ok, path, count} ->
+        IO.puts("✓ Registered workspace \"#{name}\": #{base_path}")
+        IO.puts("  #{length(repos)} repositories discovered\n")
         Enum.each(repos, fn repo -> IO.puts("  - #{repo}") end)
-        IO.puts("\nReview the list and remove any entries that are not part of the")
-        IO.puts("ecosystem (unrelated projects, one-off clones, etc.).")
+        print_sync_note(count, name)
+        IO.puts("\nConfig: #{path}")
 
       {:error, reason} ->
-        IO.puts("✗ Failed to write repositories to config: #{reason}")
-        exit({:shutdown, 1})
+        abort("Failed to write repositories to config: #{reason}")
     end
+  end
+
+  defp print_sync_note(count, _name) when count > 1 do
+    IO.puts("\n#{count} workspaces are configured. Each workspace's repositories are")
+    IO.puts("auto-discovered, so the global repositories pin was removed.")
+  end
+
+  defp print_sync_note(_count, _name) do
+    IO.puts("\nReview the list and remove any entries that are not part of the")
+    IO.puts("ecosystem (unrelated projects, one-off clones, etc.).")
   end
 
   defp init_config do
@@ -297,8 +370,18 @@ defmodule EcosystemManager.CLI do
     end
   end
 
-  defp show_workspace_path do
-    workspace_path = get_base_path()
-    IO.puts(workspace_path)
+  defp show_workspace_list do
+    case Workspace.list() do
+      [] ->
+        IO.puts("No workspaces configured.")
+        IO.puts("Run 'ecosystem-manager repos --sync' from a workspace to register one.")
+
+      workspaces ->
+        IO.puts("Configured workspaces (#{length(workspaces)}):")
+
+        Enum.each(workspaces, fn ws ->
+          IO.puts("  #{String.pad_trailing(ws.name, 20)} #{ws.path}")
+        end)
+    end
   end
 end

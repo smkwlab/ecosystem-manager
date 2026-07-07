@@ -20,16 +20,17 @@ defmodule EcosystemManager.RepositoryConfigTest do
     workspace = Path.join(temp_dir, "ws_#{:rand.uniform(1_000_000)}")
     File.mkdir_p!(workspace)
 
-    original_repos = Application.get_env(:ecosystem_manager, :repositories)
-    original_org = Application.get_env(:ecosystem_manager, :ecosystem_org)
-    Application.delete_env(:ecosystem_manager, :repositories)
-    Application.delete_env(:ecosystem_manager, :ecosystem_org)
+    saved =
+      for key <- [:repositories, :ecosystem_org, :workspaces, :workspace_path] do
+        value = Application.get_env(:ecosystem_manager, key)
+        Application.delete_env(:ecosystem_manager, key)
+        {key, value}
+      end
 
     try do
       fun.(workspace)
     after
-      restore_env(:repositories, original_repos)
-      restore_env(:ecosystem_org, original_org)
+      Enum.each(saved, fn {key, value} -> restore_env(key, value) end)
       File.rm_rf!(workspace)
     end
   end
@@ -154,6 +155,28 @@ defmodule EcosystemManager.RepositoryConfigTest do
       with_temp_workspace(fn ws ->
         init_repo(Path.join(ws, "aldc"))
         assert Repository.all_repositories(ws) == Repository.all_repositories(ws)
+      end)
+    end
+
+    test "honors the global repositories pin with a single configured workspace" do
+      with_temp_workspace(fn ws ->
+        init_repo(Path.join(ws, "aldc"))
+        Application.put_env(:ecosystem_manager, :repositories, ["pinned-only"])
+        Application.put_env(:ecosystem_manager, :workspaces, only: "/home/u/only")
+
+        assert Repository.all_repositories(ws) == ["pinned-only"]
+      end)
+    end
+
+    test "ignores the global repositories pin when multiple workspaces are configured" do
+      with_temp_workspace(fn ws ->
+        init_repo(Path.join(ws, "aldc"))
+        Application.put_env(:ecosystem_manager, :repositories, ["pinned-only"])
+        Application.put_env(:ecosystem_manager, :workspaces, a: "/home/u/a", b: "/home/u/b")
+
+        repos = Repository.all_repositories(ws)
+        refute "pinned-only" in repos
+        assert "aldc" in repos
       end)
     end
   end

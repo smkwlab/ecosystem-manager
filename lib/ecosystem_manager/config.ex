@@ -77,6 +77,16 @@ defmodule EcosystemManager.Config do
   end
 
   @doc """
+  Get the configured list of named workspaces.
+
+  Returns a keyword list (`[name: path, ...]`) or nil if not configured, in
+  which case the legacy single `:workspace_path` is used instead.
+  """
+  def workspaces do
+    Application.get_env(:ecosystem_manager, :workspaces)
+  end
+
+  @doc """
   Get repositories configuration.
   Returns nil if not configured.
   """
@@ -107,6 +117,7 @@ defmodule EcosystemManager.Config do
       github_api_base_url: github_api_base_url(),
       default_include_github: default_include_github(),
       workspace_path: workspace_path(),
+      workspaces: workspaces(),
       repositories: repositories(),
       ecosystem_org: ecosystem_org()
     ]

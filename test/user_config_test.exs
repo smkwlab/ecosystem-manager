@@ -402,4 +402,92 @@ defmodule EcosystemManager.UserConfigTest do
       end)
     end
   end
+
+  describe "sync_workspace/3" do
+    setup do
+      original =
+        for key <- [:workspace_path, :workspaces, :repositories] do
+          {key, Application.get_env(:ecosystem_manager, key)}
+        end
+
+      on_exit(fn ->
+        Enum.each(original, fn {key, value} -> restore_env(key, value) end)
+      end)
+    end
+
+    test "registers the first workspace and pins its discovered repositories" do
+      with_temp_config_dir(fn _config_dir ->
+        assert {:ok, _path, 1} =
+                 UserConfig.sync_workspace("latex", "/home/u/latex", [".", "aldc"])
+
+        assert UserConfig.load() == :ok
+        assert Application.get_env(:ecosystem_manager, :workspaces) == [latex: "/home/u/latex"]
+        assert Application.get_env(:ecosystem_manager, :repositories) == [".", "aldc"]
+      end)
+    end
+
+    test "migrates a legacy workspace_path away in favor of :workspaces" do
+      with_temp_config_dir(fn config_dir ->
+        config_path = Path.join(config_dir, "config.exs")
+
+        File.write!(config_path, """
+        import Config
+
+        config :ecosystem_manager,
+          workspace_path: "/home/u/latex"
+        """)
+
+        assert {:ok, path, 1} =
+                 UserConfig.sync_workspace("latex", "/home/u/latex", ["."])
+
+        # load/0 never deletes keys already in the application env, so assert on
+        # the generated file: workspace_path must be gone, replaced by :workspaces.
+        content = File.read!(path)
+        refute String.contains?(content, "workspace_path")
+        assert String.contains?(content, "workspaces:")
+
+        assert UserConfig.load() == :ok
+        assert Application.get_env(:ecosystem_manager, :workspaces) == [latex: "/home/u/latex"]
+      end)
+    end
+
+    test "adds a second workspace and drops the global repositories pin" do
+      with_temp_config_dir(fn config_dir ->
+        config_path = Path.join(config_dir, "config.exs")
+
+        File.write!(config_path, """
+        import Config
+
+        config :ecosystem_manager,
+          workspaces: [latex: "/home/u/latex"],
+          repositories: [".", "aldc"]
+        """)
+
+        assert {:ok, path, 2} =
+                 UserConfig.sync_workspace("dns", "/home/u/dns", [".", "zone"])
+
+        # The global repositories pin must be dropped from the generated file
+        # (load/0 does not delete pre-existing application env keys).
+        content = File.read!(path)
+        refute String.contains?(content, "repositories:")
+
+        assert UserConfig.load() == :ok
+
+        assert Application.get_env(:ecosystem_manager, :workspaces) == [
+                 latex: "/home/u/latex",
+                 dns: "/home/u/dns"
+               ]
+      end)
+    end
+
+    test "updating an existing workspace keeps the count at one" do
+      with_temp_config_dir(fn _config_dir ->
+        assert {:ok, _path, 1} = UserConfig.sync_workspace("latex", "/old/path", ["."])
+        assert {:ok, _path, 1} = UserConfig.sync_workspace("latex", "/new/path", ["."])
+
+        assert UserConfig.load() == :ok
+        assert Application.get_env(:ecosystem_manager, :workspaces) == [latex: "/new/path"]
+      end)
+    end
+  end
 end

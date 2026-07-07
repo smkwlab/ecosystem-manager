@@ -32,9 +32,21 @@ defmodule EcosystemManager.Repository do
   @doc """
   Get the list of ecosystem repositories with precedence:
   explicit config (`:repositories`) > auto-discovery under `base_path`.
+
+  The explicit `:repositories` pin is a single global list, so it is only
+  honored when at most one workspace is configured. With multiple workspaces
+  each resolves its own list via discovery under its own `base_path`.
   """
   def all_repositories(base_path) do
-    get_configured_repositories() || discover(base_path)
+    if single_workspace?() do
+      get_configured_repositories() || discover(base_path)
+    else
+      discover(base_path)
+    end
+  end
+
+  defp single_workspace? do
+    length(EcosystemManager.Workspace.list()) <= 1
   end
 
   @doc """

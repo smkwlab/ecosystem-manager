@@ -33,8 +33,13 @@ config :ecosystem_manager,
   github_api_base_url: "https://api.github.com",
   default_include_github: true,
 
-  # Workspace path (can be overridden by user config)
+  # Workspace path (can be overridden by user config).
+  # Legacy single-workspace setting; superseded by :workspaces when set.
   workspace_path: nil,
+
+  # Named workspaces for multi-workspace support (keyword list name: path).
+  # When nil, the legacy :workspace_path is used instead.
+  workspaces: nil,
 
   # Repository list (can be overridden by user config).
   # When nil, repositories are auto-discovered under the workspace.

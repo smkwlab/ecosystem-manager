@@ -103,11 +103,20 @@ defmodule EcosystemManager.UserConfig do
     # This path will be used as the base directory for all operations
     config :ecosystem_manager,
       workspace_path: "~/SynologyDrive/semi/LaTeX/latex-ecosystem",
-      
-      # Optional: Override default repository list
+
+      # Optional: multiple named workspaces. When set, this supersedes
+      # workspace_path above. The workspace containing your current directory
+      # is selected automatically; pick one explicitly with --workspace NAME.
+      # `ecosystem-manager repos --sync` registers the current workspace here.
+      # workspaces: [
+      #   latex: "~/prj/LaTeX/latex-ecosystem",
+      #   dns:   "~/prj/DNS/ecosystem"
+      # ],
+
+      # Optional: Override default repository list (single-workspace only)
       # repositories: [
       #   ".",
-      #   "texlive-ja-textlint", 
+      #   "texlive-ja-textlint",
       #   "latex-environment",
       #   "sotsuron-template",
       #   "my-custom-repo"
@@ -214,6 +223,56 @@ defmodule EcosystemManager.UserConfig do
     else
       Keyword.put(settings, :workspace_path, path)
     end
+  end
+
+  @doc """
+  Register a workspace and record its discovered repositories.
+
+  The workspace `name` -> `path` is added to (or updated in) `:workspaces`, and
+  the legacy single `:workspace_path` is dropped in favor of it. The discovered
+  `repositories` list is written as the global pin only while a single
+  workspace is configured; once several workspaces exist the pin is removed
+  because each workspace resolves its own list via discovery.
+
+  Returns `{:ok, path, workspace_count}` or `{:error, reason}`.
+  """
+  def sync_workspace(name, path, repositories) do
+    config_path = get_config_path()
+
+    with {:ok, existing} <- read_existing_settings(config_path),
+         :ok <- ensure_config_dir(get_config_dir()) do
+      workspaces = upsert_workspace(existing[:workspaces] || [], String.to_atom(name), path)
+      count = length(workspaces)
+
+      merged =
+        existing
+        |> Keyword.put(:workspaces, workspaces)
+        |> Keyword.delete(:workspace_path)
+        |> put_or_drop_repositories(repositories, count)
+
+      case File.write(config_path, render_config(merged)) do
+        :ok -> {:ok, config_path, count}
+        {:error, reason} -> {:error, "Failed to write config: #{:file.format_error(reason)}"}
+      end
+    end
+  end
+
+  # Update the entry in place when the name already exists (preserving order),
+  # otherwise append it so registration order is stable across syncs.
+  defp upsert_workspace(workspaces, key, path) do
+    if Keyword.has_key?(workspaces, key) do
+      Enum.map(workspaces, fn {k, v} -> {k, if(k == key, do: path, else: v)} end)
+    else
+      workspaces ++ [{key, path}]
+    end
+  end
+
+  defp put_or_drop_repositories(settings, repositories, 1) do
+    Keyword.put(settings, :repositories, repositories)
+  end
+
+  defp put_or_drop_repositories(settings, _repositories, _count) do
+    Keyword.delete(settings, :repositories)
   end
 
   defp read_existing_settings(config_path) do

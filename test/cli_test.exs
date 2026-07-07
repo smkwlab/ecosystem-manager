@@ -101,55 +101,10 @@ defmodule EcosystemManager.CLITest do
     end
   end
 
-  describe "find_ecosystem_root/1" do
-    test "finds root with marker file" do
-      temp_dir = System.tmp_dir!()
-      test_dir = Path.join(temp_dir, "test_ecosystem_#{:rand.uniform(10_000)}")
-      File.mkdir_p!(test_dir)
-      marker_file = Path.join(test_dir, "ecosystem-manager.sh")
-      File.write!(marker_file, "#!/bin/bash\necho test")
-
-      try do
-        result = CLI.find_ecosystem_root(test_dir)
-        assert result == test_dir
-      after
-        File.rm_rf!(test_dir)
-      end
-    end
-
-    test "returns nil when no marker found" do
-      temp_dir = System.tmp_dir!()
-      test_dir = Path.join(temp_dir, "no_marker_#{:rand.uniform(10_000)}")
-      File.mkdir_p!(test_dir)
-
-      try do
-        result = CLI.find_ecosystem_root(test_dir)
-        assert result == nil
-      after
-        File.rm_rf!(test_dir)
-      end
-    end
-
-    test "traverses up directory tree" do
-      temp_dir = System.tmp_dir!()
-      deep_path = Path.join(temp_dir, "level1/level2/level3/level4")
-      File.mkdir_p!(deep_path)
-      marker_path = Path.join(temp_dir, "level1/level2")
-      marker_file = Path.join(marker_path, "ecosystem-manager.sh")
-      File.write!(marker_file, "#!/bin/bash\necho test")
-
-      try do
-        result = CLI.find_ecosystem_root(deep_path)
-        assert result == marker_path
-      after
-        File.rm_rf!(Path.join(temp_dir, "level1"))
-      end
-    end
-  end
-
-  describe "get_base_path with workspace_path config" do
-    test "base_path uses find_ecosystem_root when workspace_path not configured" do
-      # With default config (workspace_path: nil), it should use current directory logic
+  describe "base_path resolution" do
+    test "base_path falls back to the current directory when no workspace is configured" do
+      # With default config (no workspaces / workspace_path), resolution should
+      # fall back to the current directory.
       result = CLI.parse_args(["status"])
       assert is_binary(result.base_path)
     end

@@ -144,20 +144,55 @@ config :ecosystem_manager,
 ./ecosystem-manager repos --sync
 ```
 
-`repos --sync` は検出結果を `~/.config/ecosystem-manager/config.exs` の
-`repositories:` に書き込みます（`workspace_path` など既存の設定は保持）。
-`workspace_path` が未設定なら、検出に使った workspace パスを併せて記録するため、
-workspace ルートで一度 `repos --sync` すれば、どのディレクトリからでも使える
-config.exs がそのまま出来上がります。
-エコシステム外のリポジトリ（無関係なプロジェクト等）が混じっている場合は、
-書き出された一覧から手動で削除してください。新しいリポジトリを workspace に
-追加したら `repos --sync` を再実行するか、`repositories:` を設定から外して
-自動検出に任せます。
+`repos --sync` は実行した workspace を `~/.config/ecosystem-manager/config.exs`
+の `workspaces:` に登録します（既存の設定は保持）。単一 workspace のときは検出結果を
+`repositories:` にピン留めするので、workspace ルートで一度 `repos --sync` すれば
+そのまま使える設定になります。エコシステム外のリポジトリ（無関係なプロジェクト等）が
+混じっている場合は、書き出された一覧から手動で削除してください。
+
+### 複数 workspace
+
+複数のエコシステム（例 `~/prj/LaTeX/latex-ecosystem` と `~/prj/DNS/ecosystem`）を
+1 つのツールで扱えます。各 workspace のルートで `repos --sync` すると `workspaces:` に
+登録されます：
+
+```elixir
+config :ecosystem_manager,
+  workspaces: [
+    latex: "~/prj/LaTeX/latex-ecosystem",
+    dns:   "~/prj/DNS/ecosystem"
+  ]
+```
+
+workspace は次の順で選択されます：
+
+1. `--workspace NAME`（`-w`）で明示指定
+2. カレントディレクトリを含む workspace（最深一致で自動選択）
+3. 登録が 1 つだけならそれ
+4. どれにも該当しなければカレントディレクトリ
+
+```bash
+# 登録済み workspace の一覧
+./ecosystem-manager workspace --list
+
+# cd した先の workspace が対象になる
+cd ~/prj/DNS/ecosystem && ./ecosystem-manager status
+
+# 名前で明示指定
+./ecosystem-manager status -w dns
+
+# 全 workspace をまとめて表示
+./ecosystem-manager status --all
+```
+
+複数 workspace が登録されている場合、リポジトリ一覧は各 workspace ごとに自動検出で
+解決されます（グローバルな `repositories:` ピンは使われません）。
 
 ## アーキテクチャ
 
 - **CLI**: コマンドライン処理とオプション解析
 - **Config**: 設定管理と環境別設定
+- **Workspace**: 複数 workspace の登録・解決（cwd 自動選択 / --workspace）
 - **Repository**: Git情報取得とリポジトリ管理
 - **GitHub**: GitHub API統合（Issues/PR統計）
 - **Status**: 並列処理とフォーマット出力
