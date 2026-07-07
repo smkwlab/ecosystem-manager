@@ -27,8 +27,19 @@ defmodule EcosystemManager.RepositoryTest do
       repo = Repository.new(".", "/test/path")
       assert repo.name == "."
       assert repo.path == "/test/path"
-      assert repo.display_name == "latex-ecosystem"
+      # "." is the workspace root; its display name is the workspace dir name
+      assert repo.display_name == "path"
       assert repo.status == :ok
+    end
+
+    test "derives the current-directory display name from the workspace path" do
+      assert Repository.new(".", "/home/u/latex-ecosystem").display_name == "latex-ecosystem"
+      assert Repository.new(".", "/home/u/DNS/ecosystem").display_name == "ecosystem"
+    end
+
+    test "current-directory display name is deterministic (independent of cwd)" do
+      # A relative base path must not be resolved against the working directory.
+      assert Repository.new(".", "some/dir").display_name == "dir"
     end
 
     test "creates repository struct for named directory" do
@@ -208,9 +219,9 @@ defmodule EcosystemManager.RepositoryTest do
 
   describe "display_name function coverage" do
     test "get_display_name through new function" do
-      # Test current directory special case
+      # Test current directory special case: display name is the workspace dir
       current_repo = Repository.new(".", "/test/path")
-      assert current_repo.display_name == "latex-ecosystem"
+      assert current_repo.display_name == "path"
 
       # Test regular repository names
       regular_names = [

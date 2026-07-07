@@ -151,7 +151,7 @@ defmodule EcosystemManager.Repository do
     %__MODULE__{
       name: name,
       path: if(name == ".", do: base_path, else: Path.join(base_path, name)),
-      display_name: get_display_name(name),
+      display_name: display_name(name, base_path),
       status: :ok
     }
   end
@@ -226,6 +226,10 @@ defmodule EcosystemManager.Repository do
 
   # Private functions
 
-  defp get_display_name("."), do: "latex-ecosystem"
-  defp get_display_name(name), do: name
+  # The workspace root ("." ) is shown by its directory name, so each workspace
+  # displays its own name rather than a hardcoded one. `base_path` is always an
+  # absolute path from the caller, so `Path.basename/1` is deterministic (no
+  # `Path.expand/1`, which would depend on the current working directory).
+  defp display_name(".", base_path), do: Path.basename(base_path)
+  defp display_name(name, _base_path), do: name
 end
