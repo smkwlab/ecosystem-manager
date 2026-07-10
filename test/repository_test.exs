@@ -227,7 +227,7 @@ defmodule EcosystemManager.RepositoryTest do
       regular_names = [
         "sotsuron-template",
         "latex-environment",
-        "thesis-management-tools",
+        "student-repo-management",
         "ai-reviewer",
         "custom-repo-name"
       ]
