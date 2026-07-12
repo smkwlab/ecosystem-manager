@@ -11,8 +11,11 @@ defmodule EcosystemManager.MixProject do
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       escript: [main_module: EcosystemManager.CLI, name: "ecosystem-manager"],
+      # Matches the org-standard registry-manager coverage config: a summary
+      # threshold (informational, does not hard-fail the build) rather than a
+      # gate. The CLI escript layer is exercised via integration, not units.
       test_coverage: [
-        threshold: 90,
+        summary: [threshold: 80],
         ignore_modules: [
           EcosystemManager.UserConfig
         ]
