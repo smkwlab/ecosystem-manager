@@ -12,12 +12,15 @@
 
 ## インストール
 
+エコシステムの workspace 直下に clone してビルドします：
+
 ```bash
-cd ecosystem_manager
+git clone https://github.com/smkwlab/ecosystem-manager.git
+cd ecosystem-manager
 mix deps.get
 mix escript.build
 
-# バイナリ作成
+# ビルドした escript を実行
 ./ecosystem-manager status
 ```
 
