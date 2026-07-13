@@ -217,6 +217,8 @@ defmodule EcosystemManager.CLI do
     end
   end
 
+  # no_return spec silences Dialyzer's warning about the intentional exit.
+  @spec abort(String.t()) :: no_return()
   defp abort(message) do
     IO.puts(:stderr, message)
     exit({:shutdown, 1})
