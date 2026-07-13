@@ -32,7 +32,7 @@ defmodule EcosystemManagerTest do
       try do
         repos = EcosystemManager.status(base_path: workspace, include_github: false)
         assert is_list(repos)
-        assert length(repos) > 0
+        assert repos != []
 
         # Check that we discovered the workspace root and the child repository
         repo_names = Enum.map(repos, & &1.name)
@@ -93,7 +93,7 @@ defmodule EcosystemManagerTest do
     test "status/1 with default options" do
       repos = EcosystemManager.status()
       assert is_list(repos)
-      assert length(repos) > 0
+      assert repos != []
     end
 
     test "repository_status/2 with default options" do
@@ -129,7 +129,7 @@ defmodule EcosystemManagerTest do
     test "status/0 default function call" do
       repos = EcosystemManager.status()
       assert is_list(repos)
-      assert length(repos) > 0
+      assert repos != []
     end
 
     test "repository_status/1 single param call" do

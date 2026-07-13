@@ -27,7 +27,7 @@ defmodule EcosystemManager.StatusTest do
       repos = Status.get_all_status(base_path, include_github: false)
 
       assert is_list(repos)
-      assert length(repos) > 0
+      assert repos != []
 
       # Each repo should have required fields
       for repo <- repos do
@@ -42,7 +42,7 @@ defmodule EcosystemManager.StatusTest do
       repos = Status.get_all_status("/non/existent/path", [])
       # Should still return repository structs, but with :missing status
       assert is_list(repos)
-      assert length(repos) > 0
+      assert repos != []
 
       for repo <- repos do
         assert repo.status == :missing
@@ -85,7 +85,7 @@ defmodule EcosystemManager.StatusTest do
       # Find a repository in the current directory
       all_repos = Status.get_all_status(base_path, include_github: false)
 
-      if length(all_repos) > 0 do
+      if all_repos != [] do
         first_repo = hd(all_repos)
 
         result = Status.get_repository_status(first_repo.name, base_path, include_github: false)
@@ -467,11 +467,10 @@ defmodule EcosystemManager.StatusTest do
         # Verify we have repos (ecosystem repos are always included)
         assert length(repos) >= 3
 
-        # Check if our test repos are there (they might not be found if they don't have git structure)
-        test_repo_names = ["repo1", "repo2", "repo3"]
+        # The three repositories created above should all be discovered
+        test_repo_names = ["clean_repo", "dirty_repo", "staged_repo"]
         test_repos = Enum.filter(repos, fn repo -> repo.name in test_repo_names end)
-        # We expect some repos to be found
-        assert length(test_repos) >= 0
+        assert length(test_repos) == 3
 
         # Verify each repository has proper status
         for repo <- repos do
