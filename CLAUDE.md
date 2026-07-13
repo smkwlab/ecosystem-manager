@@ -45,16 +45,6 @@ TDD: write tests before implementation. Match the surrounding code's style.
 dialyzer), the same setup as `registry-manager`. `.github/workflows/
 ai-code-review.yml` runs the org AI review on pull requests.
 
-## Architecture
-
-- **CLI** (`lib/ecosystem_manager/cli.ex`): command-line parsing and options
-- **Config** (`config.ex`): configuration and environment handling
-- **Workspace** (`workspace.ex`): multi-workspace registration/resolution
-  (cwd auto-select / `--workspace`)
-- **Repository** (`repository.ex`): Git information and repository management
-- **GitHub** (`github.ex`): GitHub API integration (issue/PR statistics)
-- **Status** (`status.ex`): parallel processing and formatted output
-
 ## Conventions
 
 - Commits: Conventional Commits, English, reference the issue number
