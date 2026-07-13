@@ -157,8 +157,11 @@ defmodule EcosystemManager.Status do
   end
 
   # Pad each column to its width with a single-space separator; the trailing
-  # padding of the last column is trimmed to avoid dangling whitespace.
-  defp format_long_row(cells, widths) do
+  # padding of the last column is trimmed to avoid dangling whitespace. The
+  # cell/width counts must match — every row producer emits the same fixed
+  # column set — so the guard fails loudly rather than letting Enum.zip/2
+  # silently drop columns if that invariant is ever broken.
+  defp format_long_row(cells, widths) when length(cells) == length(widths) do
     cells
     |> Enum.zip(widths)
     |> Enum.map_join(" ", fn {cell, width} -> String.pad_trailing(cell, width) end)

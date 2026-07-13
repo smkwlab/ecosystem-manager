@@ -180,7 +180,8 @@ defmodule EcosystemManager.StatusTest do
       # Regression: no literal tabs in the long output
       refute String.contains?(output, "\t")
 
-      [header_line, _separator_line | data_lines] = String.split(output, "\n")
+      # trim: true drops any trailing blank line so the row count stays exact
+      [header_line, _separator_line | data_lines] = String.split(output, "\n", trim: true)
 
       # header + separator + 2 data rows
       assert length(data_lines) == 2
