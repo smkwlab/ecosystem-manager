@@ -130,8 +130,10 @@ defmodule EcosystemManager.Status do
   defp long_header_cells,
     do: ["Repository", "Branch", "Changes", "Last Commit", "PRs", "Issues"]
 
+  # Derive the dash separators from the header labels so they can never drift
+  # out of sync when a header label is renamed.
   defp long_separator_cells,
-    do: ["----------", "------", "-------", "-----------", "---", "------"]
+    do: Enum.map(long_header_cells(), &String.duplicate("-", String.length(&1)))
 
   defp long_row_cells(repo) do
     [
@@ -146,6 +148,8 @@ defmodule EcosystemManager.Status do
 
   # Per-column max display width across every row (String.length is enough
   # for the ASCII-centric values shown here; revisit for CJK/emoji content).
+  defp column_widths([]), do: []
+
   defp column_widths(rows) do
     Enum.reduce(rows, nil, fn cells, acc ->
       lengths = Enum.map(cells, &String.length/1)

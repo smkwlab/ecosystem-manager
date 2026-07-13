@@ -180,10 +180,10 @@ defmodule EcosystemManager.StatusTest do
       # Regression: no literal tabs in the long output
       refute String.contains?(output, "\t")
 
-      lines = String.split(output, "\n")
+      [header_line, _separator_line | data_lines] = String.split(output, "\n")
 
       # header + separator + 2 data rows
-      assert length(lines) == 4
+      assert length(data_lines) == 2
 
       # First column width is driven by the longest name / the header label
       name_width =
@@ -191,12 +191,14 @@ defmodule EcosystemManager.StatusTest do
         |> Enum.map(&String.length/1)
         |> Enum.max()
 
-      # In every line the second column (Branch) must start at the same offset:
-      # position name_width is the single separator space, name_width+1 the
-      # first character of the (non-space) branch value.
-      for line <- lines do
-        assert String.at(line, name_width) == " "
-        refute String.at(line, name_width + 1) == " "
+      # The Branch column value must begin at the same offset (name_width + 1,
+      # past the single separator space) in the header and every data row.
+      # Asserting the exact value at that slice checks alignment without
+      # depending on incidental properties like "the char is non-space".
+      branch_values = ["Branch", "main", "feature/long-branch-name"]
+
+      for {line, branch} <- Enum.zip([header_line | data_lines], branch_values) do
+        assert String.slice(line, name_width + 1, String.length(branch)) == branch
       end
     end
 
