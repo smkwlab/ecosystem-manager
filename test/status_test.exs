@@ -467,11 +467,10 @@ defmodule EcosystemManager.StatusTest do
         # Verify we have repos (ecosystem repos are always included)
         assert length(repos) >= 3
 
-        # Check if our test repos are there (they might not be found if they don't have git structure)
-        test_repo_names = ["repo1", "repo2", "repo3"]
+        # The three repositories created above should all be discovered
+        test_repo_names = ["clean_repo", "dirty_repo", "staged_repo"]
         test_repos = Enum.filter(repos, fn repo -> repo.name in test_repo_names end)
-        # We expect some repos to be found
-        assert is_list(test_repos)
+        assert length(test_repos) == 3
 
         # Verify each repository has proper status
         for repo <- repos do
