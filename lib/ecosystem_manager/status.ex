@@ -118,13 +118,54 @@ defmodule EcosystemManager.Status do
   end
 
   defp format_output(repos, :long) do
-    header = format_header(:long)
-    separator = format_separator(:long)
+    # long mode never truncates, so column widths are variable. Compute each
+    # column's max display width across the header, separator and data rows,
+    # then pad every cell to that width instead of using tab separators.
+    all_rows = [long_header_cells(), long_separator_cells() | Enum.map(repos, &long_row_cells/1)]
+    widths = column_widths(all_rows)
 
-    rows = Enum.map(repos, &format_repository_row(&1, :long))
+    Enum.map_join(all_rows, "\n", &format_long_row(&1, widths))
+  end
 
-    [header, separator | rows]
-    |> Enum.join("\n")
+  defp long_header_cells,
+    do: ["Repository", "Branch", "Changes", "Last Commit", "PRs", "Issues"]
+
+  # Derive the dash separators from the header labels so they can never drift
+  # out of sync when a header label is renamed.
+  defp long_separator_cells,
+    do: Enum.map(long_header_cells(), &String.duplicate("-", String.length(&1)))
+
+  defp long_row_cells(repo) do
+    [
+      repo.display_name || "",
+      repo.branch || "unknown",
+      format_changes(repo.changes),
+      repo.last_commit || "unknown",
+      format_pr_info(repo.pull_requests, :long),
+      format_issue_info(repo.issues, :long)
+    ]
+  end
+
+  # Per-column max display width across every row: turn each row into its cell
+  # lengths, then transpose and take the column maxima. Returns [] for no rows
+  # (never nil). String.length is enough for the ASCII-centric values shown
+  # here; revisit for CJK/emoji content.
+  defp column_widths(rows) do
+    rows
+    |> Enum.map(fn cells -> Enum.map(cells, &String.length/1) end)
+    |> Enum.zip_with(&Enum.max/1)
+  end
+
+  # Pad each column to its width with a single-space separator; the trailing
+  # padding of the last column is trimmed to avoid dangling whitespace. The
+  # cell/width counts must match — every row producer emits the same fixed
+  # column set — so the guard fails loudly rather than letting Enum.zip/2
+  # silently drop columns if that invariant is ever broken.
+  defp format_long_row(cells, widths) when length(cells) == length(widths) do
+    cells
+    |> Enum.zip(widths)
+    |> Enum.map_join(" ", fn {cell, width} -> String.pad_trailing(cell, width) end)
+    |> String.trim_trailing()
   end
 
   defp format_header(:compact) do
@@ -134,10 +175,6 @@ defmodule EcosystemManager.Status do
     )
   end
 
-  defp format_header(:long) do
-    "Repository\tBranch\tChanges\tLast Commit\tPRs\tIssues"
-  end
-
   defp format_separator(:compact) do
     sprintf(
       "~-26s ~-27s ~-8s ~-22s ~-8s ~-8s",
@@ -145,31 +182,18 @@ defmodule EcosystemManager.Status do
     )
   end
 
-  defp format_separator(:long) do
-    "----------\t------\t-------\t-----------\t---\t------"
-  end
-
-  defp format_repository_row(repo, format) do
-    display_name = truncate_string(repo.display_name, if(format == :compact, do: 26, else: 999))
-    branch = truncate_string(repo.branch || "unknown", if(format == :compact, do: 27, else: 999))
+  defp format_repository_row(repo, :compact) do
+    display_name = truncate_string(repo.display_name, 26)
+    branch = truncate_string(repo.branch || "unknown", 27)
     changes = format_changes(repo.changes)
+    last_commit = truncate_string(repo.last_commit || "unknown", 22)
+    pr_info = format_pr_info(repo.pull_requests, :compact)
+    issue_info = format_issue_info(repo.issues, :compact)
 
-    last_commit =
-      truncate_string(repo.last_commit || "unknown", if(format == :compact, do: 22, else: 999))
-
-    pr_info = format_pr_info(repo.pull_requests, format)
-    issue_info = format_issue_info(repo.issues, format)
-
-    case format do
-      :compact ->
-        sprintf(
-          "~-26s ~-27s ~-8s ~-22s ~-8s ~-8s",
-          [display_name, branch, changes, last_commit, pr_info, issue_info]
-        )
-
-      :long ->
-        "#{display_name}\t#{branch}\t#{changes}\t#{last_commit}\t#{pr_info}\t#{issue_info}"
-    end
+    sprintf(
+      "~-26s ~-27s ~-8s ~-22s ~-8s ~-8s",
+      [display_name, branch, changes, last_commit, pr_info, issue_info]
+    )
   end
 
   defp format_changes(:missing), do: "missing"
