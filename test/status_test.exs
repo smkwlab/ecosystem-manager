@@ -150,6 +150,56 @@ defmodule EcosystemManager.StatusTest do
       end
     end
 
+    test "long format aligns columns with space padding instead of tabs" do
+      # Repositories with names of very different lengths: with tab-separated
+      # columns the branch/commit columns start at different offsets once a
+      # name exceeds the 8-column tab stop. Padded columns must all line up.
+      repos = [
+        %Repository{
+          name: "latex-ecosystem",
+          display_name: "latex-ecosystem",
+          branch: "main",
+          changes: 0,
+          last_commit: "7a52cd4 3 hours ago",
+          pull_requests: %{total: 0, drafts: 0, needs_review: 0},
+          issues: %{total: 0, bugs: 0, enhancements: 0, urgent: 0}
+        },
+        %Repository{
+          name: "ai-academic-paper-reviewer",
+          display_name: "ai-academic-paper-reviewer",
+          branch: "feature/long-branch-name",
+          changes: 3,
+          last_commit: "def4567 2 days ago",
+          pull_requests: %{total: 2, drafts: 1, needs_review: 1},
+          issues: %{total: 5, bugs: 2, enhancements: 2, urgent: 1}
+        }
+      ]
+
+      output = Status.format_status(repos, format: :long)
+
+      # Regression: no literal tabs in the long output
+      refute String.contains?(output, "\t")
+
+      lines = String.split(output, "\n")
+
+      # header + separator + 2 data rows
+      assert length(lines) == 4
+
+      # First column width is driven by the longest name / the header label
+      name_width =
+        ["Repository", "latex-ecosystem", "ai-academic-paper-reviewer"]
+        |> Enum.map(&String.length/1)
+        |> Enum.max()
+
+      # In every line the second column (Branch) must start at the same offset:
+      # position name_width is the single separator space, name_width+1 the
+      # first character of the (non-space) branch value.
+      for line <- lines do
+        assert String.at(line, name_width) == " "
+        refute String.at(line, name_width + 1) == " "
+      end
+    end
+
     test "applies filters correctly" do
       temp_dir = System.tmp_dir!()
       test_repo = Path.join(temp_dir, "filter_test_#{:rand.uniform(10000)}")
