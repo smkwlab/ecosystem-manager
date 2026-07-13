@@ -146,19 +146,14 @@ defmodule EcosystemManager.Status do
     ]
   end
 
-  # Per-column max display width across every row (String.length is enough
-  # for the ASCII-centric values shown here; revisit for CJK/emoji content).
-  defp column_widths([]), do: []
-
+  # Per-column max display width across every row: turn each row into its cell
+  # lengths, then transpose and take the column maxima. Returns [] for no rows
+  # (never nil). String.length is enough for the ASCII-centric values shown
+  # here; revisit for CJK/emoji content.
   defp column_widths(rows) do
-    Enum.reduce(rows, nil, fn cells, acc ->
-      lengths = Enum.map(cells, &String.length/1)
-
-      case acc do
-        nil -> lengths
-        _ -> Enum.zip_with(acc, lengths, &max/2)
-      end
-    end)
+    rows
+    |> Enum.map(fn cells -> Enum.map(cells, &String.length/1) end)
+    |> Enum.zip_with(&Enum.max/1)
   end
 
   # Pad each column to its width with a single-space separator; the trailing
