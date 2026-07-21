@@ -38,4 +38,4 @@ ecosystem-manager
 simple_test.exs
 
 # Claude Code local settings
-.claude/
+.claude/settings.local.json
