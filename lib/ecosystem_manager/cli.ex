@@ -47,6 +47,7 @@ defmodule EcosystemManager.CLI do
     exit_with_code(1)
   end
 
+  # `help` はコマンドとしても受ける(Parser が特別扱いするのは --help フラグのみ)
   defp execute(%{command: "help"}), do: print_help_and_exit()
 
   defp execute(%{} = config) do
@@ -82,6 +83,8 @@ defmodule EcosystemManager.CLI do
     end
   end
 
+  # ToolKit.CLI.Parser は未知コマンドをそのまま通す仕様(dispatch 側の責務)なので、
+  # この節が受けて exit 1 に落とす
   defp continue_execute(%{command: unknown}) do
     IO.puts("Unknown command: #{unknown}")
     IO.puts("Run 'ecosystem-manager help' for usage information.")

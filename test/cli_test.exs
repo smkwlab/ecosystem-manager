@@ -312,10 +312,7 @@ defmodule EcosystemManager.CLITest do
         assert CLISpec.find_command(command.name)
       end
 
-      # dispatch 側の節と spec のコマンド集合が一致していることの緩い検証:
-      # spec の全コマンドが main 経由でエラーなく認識される(unknown 扱いにならない)
-      assert Enum.sort(CLI.known_commands()) ==
-               Enum.sort(["status", "config", "repos", "workspace", "init-config", "help"])
+      assert Enum.sort(CLI.known_commands()) == Enum.sort(CLISpec.command_names())
     end
   end
 end
