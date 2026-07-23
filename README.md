@@ -131,8 +131,9 @@ config :ecosystem_manager,
 
 `enable_cache: true` のとき、`gh issue/pr list` の結果をリポジトリ単位で
 `cache_dir` 配下（`github/` サブディレクトリ）にキャッシュし、TTL 内は
-gh CLI を呼ばずに再利用します。`status --no-cache` で一時的にバイパスして
-最新情報を取得できます（取得結果はキャッシュへ書き戻されます）。
+gh CLI を呼ばずに再利用します。`status --no-cache` はこのキャッシュを
+バイパスし、常に gh CLI を呼んで最新情報を取得します（読み込みも書き込みも
+行いません）。
 
 `--fast` はキャッシュとは独立で、GitHub アクセス自体を丸ごとスキップします
 （キャッシュの読み書きも行いません）。`--no-cache` は GitHub へアクセスした

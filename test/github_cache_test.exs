@@ -59,7 +59,9 @@ defmodule EcosystemManager.GitHubCacheTest do
     end
 
     test "an expired entry is refetched", %{cache_dir: cache_dir} do
-      # ttl: 0 makes every stored entry already expired, so the cache never hits.
+      # ttl: 0 makes every stored entry already expired. In ToolKit.Cache's
+      # low-level put/get path (used here) put stamps expires_at = now + 0, so
+      # any elapsed time makes get treat it as expired — the cache never hits.
       opts = [use_cache: true, cache_dir: cache_dir, cache_ttl: 0]
 
       GitHub.get_issues("owner", "repo", opts)

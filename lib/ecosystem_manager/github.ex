@@ -21,10 +21,6 @@ defmodule EcosystemManager.GitHub do
   # Cache subdirectory (category) under the cache directory.
   @cache_category "github"
 
-  # persistent_term key for the test-only gh CLI invocation counter. It lets a
-  # test assert that a cache hit does not shell out to gh.
-  @mock_counter_key {__MODULE__, :mock_gh_call_count}
-
   @doc """
   Get issues and pull requests for a repository.
 
@@ -179,8 +175,9 @@ defmodule EcosystemManager.GitHub do
   end
 
   # gh issue/pr list are distinct calls for the same repo, so the kind keeps
-  # their entries apart. Cache.sanitize/1 flattens the "owner/repo:kind" key
-  # into a single filename.
+  # their entries apart. ToolKit.Cache sanitizes the key into a single flat
+  # filename (its moduledoc guarantees "owner/repo"-style names map to one
+  # file), so the "/" and ":" here are never treated as path separators.
   defp cache_key(owner, repo, kind), do: "#{owner}/#{repo}:#{kind}"
 
   defp gh_api_call(args) do
@@ -193,10 +190,17 @@ defmodule EcosystemManager.GitHub do
     end
   end
 
-  defp read_mock_call_count, do: :persistent_term.get(@mock_counter_key, 0)
+  # The mock gh-CLI invocation counter is test-only: production builds get a
+  # no-op bump and never touch persistent_term at runtime. persistent_term is
+  # acceptable for the counter because MOCK_GH_CLI is set only by the suite, so
+  # it is updated just a handful of times per test (not a hot path).
+  if Mix.env() == :test do
+    @mock_counter_key {__MODULE__, :mock_gh_call_count}
 
-  defp bump_mock_call_count do
-    :persistent_term.put(@mock_counter_key, read_mock_call_count() + 1)
+    defp bump_mock_call_count,
+      do: :persistent_term.put(@mock_counter_key, :persistent_term.get(@mock_counter_key, 0) + 1)
+  else
+    defp bump_mock_call_count, do: :ok
   end
 
   defp real_gh_api_call(args) do
@@ -305,7 +309,7 @@ defmodule EcosystemManager.GitHub do
     def reset_mock_gh_call_count, do: :persistent_term.put(@mock_counter_key, 0)
 
     @doc false
-    def mock_gh_call_count, do: read_mock_call_count()
+    def mock_gh_call_count, do: :persistent_term.get(@mock_counter_key, 0)
 
     @doc false
     def test_count_by_labels(issues, target_labels), do: count_by_labels(issues, target_labels)
