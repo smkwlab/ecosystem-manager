@@ -60,6 +60,11 @@ defmodule EcosystemManager.Config do
 
   @doc """
   Get the base directory for the GitHub result cache.
+
+  The value may contain a leading `~` (kept unexpanded so `ecosystem-manager
+  config` shows a portable path, matching how `workspace_path` is stored);
+  callers must `Path.expand/1` it before use. `EcosystemManager.GitHub`
+  expands it in its cache options.
   """
   def cache_dir do
     Application.get_env(:ecosystem_manager, :cache_dir, "~/.cache/ecosystem-manager")

@@ -193,12 +193,20 @@ defmodule EcosystemManager.GitHub do
   # The mock gh-CLI invocation counter is test-only: production builds get a
   # no-op bump and never touch persistent_term at runtime. persistent_term is
   # acceptable for the counter because MOCK_GH_CLI is set only by the suite, so
-  # it is updated just a handful of times per test (not a hot path).
+  # it is updated just a handful of times per test (not a hot path). The key
+  # and every accessor live in this single block so the attribute is defined
+  # and referenced together (no cross-block compile-order coupling).
   if Mix.env() == :test do
     @mock_counter_key {__MODULE__, :mock_gh_call_count}
 
     defp bump_mock_call_count,
       do: :persistent_term.put(@mock_counter_key, :persistent_term.get(@mock_counter_key, 0) + 1)
+
+    @doc false
+    def reset_mock_gh_call_count, do: :persistent_term.put(@mock_counter_key, 0)
+
+    @doc false
+    def mock_gh_call_count, do: :persistent_term.get(@mock_counter_key, 0)
   else
     defp bump_mock_call_count, do: :ok
   end
@@ -305,12 +313,6 @@ defmodule EcosystemManager.GitHub do
   # Test helpers - compiled only in the :test environment, so they never
   # exist in production builds
   if Mix.env() == :test do
-    @doc false
-    def reset_mock_gh_call_count, do: :persistent_term.put(@mock_counter_key, 0)
-
-    @doc false
-    def mock_gh_call_count, do: :persistent_term.get(@mock_counter_key, 0)
-
     @doc false
     def test_count_by_labels(issues, target_labels), do: count_by_labels(issues, target_labels)
 
