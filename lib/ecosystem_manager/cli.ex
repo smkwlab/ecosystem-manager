@@ -3,72 +3,59 @@ defmodule EcosystemManager.CLI do
   Command Line Interface for Ecosystem Manager.
   """
 
+  alias EcosystemManager.CLI.Spec
   alias EcosystemManager.Config
   alias EcosystemManager.Repository
   alias EcosystemManager.Status
   alias EcosystemManager.UserConfig
   alias EcosystemManager.Workspace
+  alias ToolKit.CLI.Exit, as: EngineExit
+  alias ToolKit.CLI.Parser, as: EngineParser
 
+  @spec main([String.t()]) :: no_return()
   def main(args) do
     args
     |> parse_args()
     |> execute()
   end
 
+  @doc false
+  def known_commands, do: Spec.command_names()
+
+  @doc false
   def parse_args(args) do
-    {opts, command_args, _} =
-      OptionParser.parse(args,
-        switches: [
-          help: :boolean,
-          long: :boolean,
-          fast: :boolean,
-          urgent_issues: :boolean,
-          with_prs: :boolean,
-          needs_review: :boolean,
-          max_concurrency: :integer,
-          time_sort: :boolean,
-          sync: :boolean,
-          workspace: :string,
-          name: :string,
-          all: :boolean,
-          list: :boolean
-        ],
-        aliases: [
-          h: :help,
-          l: :long,
-          f: :fast,
-          t: :time_sort,
-          w: :workspace
-        ]
-      )
+    # strict パース・help 短絡・コマンド別オプション検証は ToolKit に委譲する。
+    # サブコマンド省略時は status を実行する
+    case EngineParser.parse(Spec.spec(), args, default_command: "status") do
+      {:command, command, argv, opts} ->
+        %{command: command, args: argv, opts: opts, base_path: resolve_base_path(opts)}
 
-    command =
-      case command_args do
-        [] -> "status"
-        [cmd | _] -> cmd
-      end
-
-    %{
-      command: command,
-      opts: opts,
-      base_path: resolve_base_path(opts)
-    }
+      other ->
+        other
+    end
   end
 
-  defp execute(%{opts: opts} = config) do
-    if opts[:help] do
-      show_help()
-    else
-      continue_execute(config)
-    end
+  defp execute(:help), do: print_help_and_exit()
+
+  defp execute({:help_command, name}) do
+    IO.puts(Spec.render_command_help(name))
+    exit_with_code(0)
+  end
+
+  defp execute({:error, reason}) do
+    IO.puts(:stderr, "❌ エラー: #{reason}")
+    exit_with_code(1)
+  end
+
+  defp execute(%{command: "help"}), do: print_help_and_exit()
+
+  defp execute(%{} = config) do
+    continue_execute(config)
+    exit_with_code(0)
   end
 
   defp continue_execute(%{command: "status"} = config) do
     execute_status(config)
-  end
-
-  defp continue_execute(%{command: "help"}) do
-    show_help()
   end
 
   defp continue_execute(%{command: "config"}) do
@@ -98,10 +85,17 @@ defmodule EcosystemManager.CLI do
   defp continue_execute(%{command: unknown}) do
     IO.puts("Unknown command: #{unknown}")
     IO.puts("Run 'ecosystem-manager help' for usage information.")
-
-    # Use exit instead of System.halt for testability
-    exit({:shutdown, 1})
+    exit_with_code(1)
   end
+
+  defp print_help_and_exit do
+    IO.puts(Spec.render_help())
+    exit_with_code(0)
+  end
+
+  # テスト時は System.halt せず throw する（ToolKit.CLI.Exit の test_mode 規約）
+  @spec exit_with_code(non_neg_integer()) :: no_return()
+  defp exit_with_code(code), do: EngineExit.exit_with_code(:ecosystem_manager, code)
 
   defp execute_status(%{opts: opts, base_path: base_path}) do
     if opts[:all] do
@@ -217,59 +211,10 @@ defmodule EcosystemManager.CLI do
     end
   end
 
-  # no_return spec silences Dialyzer's warning about the intentional exit.
   @spec abort(String.t()) :: no_return()
   defp abort(message) do
     IO.puts(:stderr, message)
-    exit({:shutdown, 1})
-  end
-
-  defp show_help do
-    IO.puts("""
-    LaTeX Thesis Environment Ecosystem Manager (Elixir Edition)
-
-    USAGE:
-        ecosystem-manager [COMMAND] [OPTIONS]
-
-    COMMANDS:
-        status            Show status of all repositories (default)
-        config            Show current configuration
-        repos             Show repository configuration and sources
-        repos --sync      Auto-discover ecosystem repositories, write the list
-                          into the user config and register the workspace
-        workspace         Show the resolved workspace path
-        workspace --list  List all configured workspaces
-        init-config       Create example user configuration files
-        help              Show this help message
-
-    STATUS OPTIONS:
-        -l, --long             Show detailed status with full information
-        -f, --fast             Fast mode - skip GitHub API calls
-        --all                  Show every configured workspace (grouped)
-        --urgent-issues        Show only repositories with urgent issues
-        --with-prs            Show only repositories with open PRs
-        --needs-review        Show only repositories with PRs needing review
-        --max-concurrency N   Maximum parallel operations (default: 8)
-
-    WORKSPACE OPTIONS:
-        -w, --workspace NAME   Operate on the named workspace (see workspace --list)
-
-    EXAMPLES:
-        ecosystem-manager                    # Show compact status
-        ecosystem-manager status --long     # Show detailed status
-        ecosystem-manager status --fast     # Quick status without GitHub API
-        ecosystem-manager status --all      # Status across all workspaces
-        ecosystem-manager status -w dns     # Status of the "dns" workspace
-        cd $(ecosystem-manager workspace)   # Change to workspace directory
-
-    PERFORMANCE:
-        This Elixir version uses parallel processing to significantly improve
-        performance compared to the original Bash script.
-        
-        Expected performance:
-        - Fast mode:     ~1-2 seconds 
-        - Full mode:     ~2-4 seconds (vs 12+ seconds for Bash version)
-    """)
+    exit_with_code(1)
   end
 
   defp show_config do

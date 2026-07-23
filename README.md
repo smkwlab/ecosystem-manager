@@ -62,10 +62,10 @@ ecosystem-manager status  # workspace_pathで指定したディレクトリで�
 ./ecosystem-manager status
 
 # GitHub情報なしの高速モード（80ms）
-./ecosystem-manager status --no-github
+./ecosystem-manager status --fast
 
 # 詳細表示
-./ecosystem-manager status --format long
+./ecosystem-manager status --long
 
 # フィルタリング
 ./ecosystem-manager status --urgent-issues
@@ -81,7 +81,7 @@ ecosystem-manager status  # workspace_pathで指定したディレクトリで�
 | モード | 実行時間 | 改善率 |
 |--------|----------|--------|
 | フルモード | ~1.5 seconds | 88% |
-| 高速モード (--no-github) | ~80ms | 99.3% |
+| 高速モード (--fast) | ~80ms | 99.3% |
 | 元のBash版 | 12+ seconds | - |
 
 ## 開発
