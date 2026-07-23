@@ -9,41 +9,37 @@ defmodule EcosystemManager.UserConfigTest do
   describe "get_config_path/0" do
     test "returns expanded config path" do
       path = UserConfig.get_config_path()
-      assert String.ends_with?(path, "/.config/ecosystem-manager/config.exs")
+      assert String.ends_with?(path, "/config.yml")
       assert String.starts_with?(path, "/")
     end
   end
 
   describe "get_config_dir/0" do
-    test "returns expanded config directory" do
+    test "returns an expanded absolute config directory" do
       dir = UserConfig.get_config_dir()
-      assert String.ends_with?(dir, "/.config/ecosystem-manager")
       assert String.starts_with?(dir, "/")
     end
   end
 
   describe "create_example_config/0" do
-    test "creates example config file successfully" do
+    test "creates an annotated YAML example that parses" do
       with_temp_config_dir(fn config_dir ->
-        result = UserConfig.create_example_config()
+        assert {:ok, example_path} = UserConfig.create_example_config()
 
-        case result do
-          {:ok, example_path} ->
-            assert Path.dirname(example_path) == config_dir
-            assert File.exists?(example_path)
-            assert String.ends_with?(example_path, "config.example.exs")
+        assert Path.dirname(example_path) == config_dir
+        assert String.ends_with?(example_path, "config.example.yml")
 
-            content = File.read!(example_path)
-            # Heredoc indentation is trimmed by Elixir, so the generated
-            # file must start at column 0
-            assert String.starts_with?(content, "# EcosystemManager User Configuration")
-            assert String.contains?(content, "\nimport Config\n")
-            assert String.contains?(content, "workspace_path:")
-            assert String.contains?(content, "repositories:")
+        content = File.read!(example_path)
+        assert String.starts_with?(content, "# EcosystemManager User Configuration")
+        assert String.contains?(content, "workspace_path:")
+        assert String.contains?(content, "# repositories:")
+        assert String.contains?(content, "# workspaces:")
+        assert String.contains?(content, "# ecosystem_org:")
 
-          {:error, reason} ->
-            flunk("Expected success but got error: #{reason}")
-        end
+        # The example (active keys + commented-out options) must be valid YAML
+        assert {:ok, parsed} = YamlElixir.read_from_file(example_path)
+        assert is_map(parsed)
+        assert Map.has_key?(parsed, "workspace_path")
       end)
     end
 
@@ -74,85 +70,32 @@ defmodule EcosystemManager.UserConfigTest do
         File.rm(blocker)
       end
     end
-
-    test "handles file write errors gracefully" do
-      # Test error case by trying to write to a read-only directory
-      # This is hard to test directly, so we'll test the structure
-      temp_dir = System.tmp_dir!()
-      test_config_dir = Path.join(temp_dir, "test_ecosystem_config_#{:rand.uniform(10_000)}")
-
-      try do
-        File.mkdir_p!(test_config_dir)
-        example_path = Path.join(test_config_dir, "config.example.exs")
-
-        # Manually test the content that would be created
-        content = """
-        # EcosystemManager User Configuration
-        # Copy this file to config.exs and customize as needed
-
-        import Config
-
-        # Set your LaTeX ecosystem workspace path
-        # This path will be used as the base directory for all operations
-        config :ecosystem_manager,
-          workspace_path: "~/SynologyDrive/semi/LaTeX/latex-ecosystem"
-        """
-
-        result = File.write(example_path, content)
-        assert result == :ok
-
-        # Verify content structure
-        file_content = File.read!(example_path)
-        assert String.contains?(file_content, "workspace_path:")
-        assert String.contains?(file_content, "import Config")
-      after
-        File.rm_rf!(test_config_dir)
-      end
-    end
   end
 
   describe "load/0" do
     setup do
-      # Save original config values
-      original_workspace = Application.get_env(:ecosystem_manager, :workspace_path)
-      original_repos = Application.get_env(:ecosystem_manager, :repositories)
-
-      on_exit(fn ->
-        # Restore original values
-        if original_workspace do
-          Application.put_env(:ecosystem_manager, :workspace_path, original_workspace)
-        else
-          Application.delete_env(:ecosystem_manager, :workspace_path)
-        end
-
-        if original_repos do
-          Application.put_env(:ecosystem_manager, :repositories, original_repos)
-        else
-          Application.delete_env(:ecosystem_manager, :repositories)
-        end
-      end)
+      snapshot_app_env()
     end
 
-    test "returns :ok when config file doesn't exist" do
+    test "returns :ok when no config file exists" do
       with_temp_config_dir(fn _config_dir ->
         assert UserConfig.load() == :ok
       end)
     end
 
-    test "loads valid config file and applies settings" do
+    test "loads valid config.yml and applies settings" do
       with_temp_config_dir(fn config_dir ->
-        config_path = Path.join(config_dir, "config.exs")
-
-        File.write!(config_path, """
-        import Config
-
-        config :ecosystem_manager,
-          workspace_path: "/test/workspace",
-          repositories: ["test-repo1", "test-repo2"]
+        File.write!(Path.join(config_dir, "config.yml"), """
+        workspace_path: "/test/workspace"
+        repositories:
+          - "test-repo1"
+          - "test-repo2"
+        ecosystem_org: "smkwlab"
         """)
 
         assert UserConfig.load() == :ok
         assert Application.get_env(:ecosystem_manager, :workspace_path) == "/test/workspace"
+        assert Application.get_env(:ecosystem_manager, :ecosystem_org) == "smkwlab"
 
         assert Application.get_env(:ecosystem_manager, :repositories) == [
                  "test-repo1",
@@ -161,91 +104,110 @@ defmodule EcosystemManager.UserConfigTest do
       end)
     end
 
-    test "handles invalid config file gracefully" do
+    test "loads workspaces mapping as a keyword list sorted by name" do
       with_temp_config_dir(fn config_dir ->
-        config_path = Path.join(config_dir, "config.exs")
-        File.write!(config_path, "invalid elixir syntax {{")
+        File.write!(Path.join(config_dir, "config.yml"), """
+        workspaces:
+          latex: "/home/u/latex"
+          dns: "/home/u/dns"
+        """)
+
+        assert UserConfig.load() == :ok
+
+        assert Application.get_env(:ecosystem_manager, :workspaces) == [
+                 dns: "/home/u/dns",
+                 latex: "/home/u/latex"
+               ]
+      end)
+    end
+
+    test "ignores unknown keys" do
+      with_temp_config_dir(fn config_dir ->
+        File.write!(Path.join(config_dir, "config.yml"), """
+        workspace_path: "/test/workspace"
+        default_concurrency: 4
+        """)
+
+        assert UserConfig.load() == :ok
+        # Unknown keys never reach the application env (getter default: 8)
+        assert EcosystemManager.Config.default_concurrency() == 8
+      end)
+    end
+
+    test "returns an error for invalid YAML" do
+      with_temp_config_dir(fn config_dir ->
+        File.write!(Path.join(config_dir, "config.yml"), "workspaces: {{{")
 
         assert {:error, message} = UserConfig.load()
         assert message =~ "configuration"
       end)
     end
 
-    test "handles config file using build-time-only config_env/0" do
+    test "returns an error when the top level is not a mapping" do
       with_temp_config_dir(fn config_dir ->
-        config_path = Path.join(config_dir, "config.exs")
+        File.write!(Path.join(config_dir, "config.yml"), """
+        - one
+        - two
+        """)
 
-        File.write!(config_path, """
+        assert {:error, message} = UserConfig.load()
+        assert message =~ "mapping"
+      end)
+    end
+
+    test "rejects invalid workspace names" do
+      with_temp_config_dir(fn config_dir ->
+        File.write!(Path.join(config_dir, "config.yml"), """
+        workspaces:
+          "bad name!": "/home/u/latex"
+        """)
+
+        assert {:error, message} = UserConfig.load()
+        assert message =~ "workspace name"
+      end)
+    end
+
+    test "returns an error for wrongly typed values" do
+      with_temp_config_dir(fn config_dir ->
+        File.write!(Path.join(config_dir, "config.yml"), """
+        repositories: "not-a-list"
+        """)
+
+        assert {:error, message} = UserConfig.load()
+        assert message =~ "repositories"
+      end)
+    end
+
+    test "returns migration guidance when only a legacy config.exs exists" do
+      with_temp_config_dir(fn config_dir ->
+        File.write!(Path.join(config_dir, "config.exs"), """
         import Config
-
-        case config_env() do
-          _ -> config :ecosystem_manager, workspace_path: "/test/workspace"
-        end
+        config :ecosystem_manager, workspace_path: "/legacy"
         """)
 
-        # config_env/0 is build-time only; loading must fail gracefully
-        # instead of crashing the CLI
         assert {:error, message} = UserConfig.load()
-        assert message =~ "configuration"
+        assert message =~ "config.exs"
+        assert message =~ "config.yml"
+        assert message =~ "init-config"
+        # The legacy file must not be evaluated
+        assert Application.get_env(:ecosystem_manager, :workspace_path) != "/legacy"
       end)
     end
 
-    test "handles config file that throws" do
+    test "ignores a leftover config.exs once config.yml exists" do
       with_temp_config_dir(fn config_dir ->
-        config_path = Path.join(config_dir, "config.exs")
-
-        File.write!(config_path, """
+        File.write!(Path.join(config_dir, "config.exs"), """
         import Config
-
-        throw(:boom)
+        config :ecosystem_manager, workspace_path: "/legacy"
         """)
 
-        assert {:error, message} = UserConfig.load()
-        assert message =~ "configuration"
-      end)
-    end
-
-    test "handles config file with missing import Config" do
-      with_temp_config_dir(fn config_dir ->
-        config_path = Path.join(config_dir, "config.exs")
-
-        File.write!(config_path, """
-        config :ecosystem_manager, workspace_path: "/test/workspace"
+        File.write!(Path.join(config_dir, "config.yml"), """
+        workspace_path: "/current"
         """)
 
-        assert {:error, message} = UserConfig.load()
-        assert message =~ "configuration"
+        assert UserConfig.load() == :ok
+        assert Application.get_env(:ecosystem_manager, :workspace_path) == "/current"
       end)
-    end
-  end
-
-  defp restore_env(key, nil), do: Application.delete_env(:ecosystem_manager, key)
-  defp restore_env(key, value), do: Application.put_env(:ecosystem_manager, key, value)
-
-  # Runs `fun` with ECOSYSTEM_MANAGER_CONFIG_DIR pointing at a fresh
-  # temporary directory so UserConfig never touches the developer's real
-  # ~/.config/ecosystem-manager. Overriding HOME does not work for this:
-  # Path.expand/1 resolves `~` via the home directory cached at VM start.
-  # Passes the created config directory to `fun` and always restores the
-  # environment afterwards.
-  defp with_temp_config_dir(fun) do
-    temp_dir = System.tmp_dir!()
-    test_config_dir = Path.join(temp_dir, "test_config_dir_#{:rand.uniform(10_000)}")
-
-    original = System.get_env("ECOSYSTEM_MANAGER_CONFIG_DIR")
-
-    try do
-      System.put_env("ECOSYSTEM_MANAGER_CONFIG_DIR", test_config_dir)
-      File.mkdir_p!(test_config_dir)
-      fun.(test_config_dir)
-    after
-      if original do
-        System.put_env("ECOSYSTEM_MANAGER_CONFIG_DIR", original)
-      else
-        System.delete_env("ECOSYSTEM_MANAGER_CONFIG_DIR")
-      end
-
-      File.rm_rf!(test_config_dir)
     end
   end
 
@@ -253,72 +215,50 @@ defmodule EcosystemManager.UserConfigTest do
     test "uses the default workspace placeholder when no path is given" do
       with_temp_config_dir(fn config_dir ->
         assert {:ok, config_path} = UserConfig.create_default_config()
-        assert config_path == Path.join(config_dir, "config.exs")
+        assert config_path == Path.join(config_dir, "config.yml")
 
         content = File.read!(config_path)
         assert String.contains?(content, ~s(workspace_path: "~/path/to/latex-ecosystem"))
       end)
     end
 
-    test "creates default config file when none exists" do
+    test "creates an annotated default config that reloads" do
       with_temp_config_dir(fn config_dir ->
-        result = UserConfig.create_default_config("/test/workspace")
+        assert {:ok, config_path} = UserConfig.create_default_config("/test/workspace")
+        assert config_path == Path.join(config_dir, "config.yml")
 
-        case result do
-          {:ok, config_path} ->
-            assert config_path == Path.join(config_dir, "config.exs")
+        content = File.read!(config_path)
+        assert String.starts_with?(content, "# EcosystemManager User Configuration")
+        assert String.contains?(content, ~s(workspace_path: "/test/workspace"))
 
-            content = File.read!(config_path)
-            # Heredoc indentation is trimmed by Elixir, so the generated
-            # file must start at column 0
-            assert String.starts_with?(content, "# EcosystemManager User Configuration")
-            assert String.contains?(content, "\nimport Config\n")
-            assert String.contains?(content, ~s(workspace_path: "/test/workspace"))
-
-          {:error, reason} ->
-            flunk("Expected success but got error: #{reason}")
-        end
+        assert {:ok, parsed} = YamlElixir.read_from_file(config_path)
+        assert parsed["workspace_path"] == "/test/workspace"
       end)
     end
 
     test "returns error when config file already exists" do
       with_temp_config_dir(fn config_dir ->
-        config_path = Path.join(config_dir, "config.exs")
-        File.write!(config_path, "# existing config")
+        File.write!(Path.join(config_dir, "config.yml"), "# existing config")
 
-        result = UserConfig.create_default_config("/test/workspace")
-
-        case result do
-          {:error, message} ->
-            assert String.contains?(message, "already exists")
-
-          {:ok, _} ->
-            flunk("Expected error when config file already exists")
-        end
+        assert {:error, message} = UserConfig.create_default_config("/test/workspace")
+        assert String.contains?(message, "already exists")
       end)
     end
   end
 
-  describe "set_repositories/1" do
+  describe "set_repositories/2" do
     setup do
-      # set_repositories + load/0 mutate the global application env; snapshot
-      # and restore it so these tests do not leak into other test files.
-      original_workspace = Application.get_env(:ecosystem_manager, :workspace_path)
-      original_repos = Application.get_env(:ecosystem_manager, :repositories)
-
-      on_exit(fn ->
-        restore_env(:workspace_path, original_workspace)
-        restore_env(:repositories, original_repos)
-      end)
+      snapshot_app_env()
     end
 
-    test "writes a repositories list that reloads correctly" do
+    test "writes an annotated repositories list that round-trips" do
       with_temp_config_dir(fn config_dir ->
         assert {:ok, config_path} = UserConfig.set_repositories([".", "aldc", "wr-template"])
-        assert config_path == Path.join(config_dir, "config.exs")
+        assert config_path == Path.join(config_dir, "config.yml")
 
         content = File.read!(config_path)
-        assert String.contains?(content, "\nimport Config\n")
+        # Comments are part of the design: the generated YAML is annotated
+        assert String.starts_with?(content, "# EcosystemManager User Configuration")
         assert String.contains?(content, "repositories:")
         assert String.contains?(content, "aldc")
 
@@ -335,14 +275,12 @@ defmodule EcosystemManager.UserConfigTest do
 
     test "preserves existing settings such as workspace_path" do
       with_temp_config_dir(fn config_dir ->
-        config_path = Path.join(config_dir, "config.exs")
+        config_path = Path.join(config_dir, "config.yml")
 
         File.write!(config_path, """
-        import Config
-
-        config :ecosystem_manager,
-          workspace_path: "/existing/workspace",
-          repositories: ["old-repo"]
+        workspace_path: "/existing/workspace"
+        repositories:
+          - "old-repo"
         """)
 
         assert {:ok, ^config_path} = UserConfig.set_repositories([".", "aldc"])
@@ -360,11 +298,23 @@ defmodule EcosystemManager.UserConfigTest do
 
     test "returns an error when the existing config is invalid" do
       with_temp_config_dir(fn config_dir ->
-        config_path = Path.join(config_dir, "config.exs")
-        File.write!(config_path, "this is not valid elixir {{")
+        File.write!(Path.join(config_dir, "config.yml"), "repositories: {{{")
 
         assert {:error, message} = UserConfig.set_repositories([".", "aldc"])
         assert message =~ "configuration"
+      end)
+    end
+
+    test "returns migration guidance when only a legacy config.exs exists" do
+      with_temp_config_dir(fn config_dir ->
+        File.write!(Path.join(config_dir, "config.exs"), """
+        import Config
+        config :ecosystem_manager, workspace_path: "/legacy"
+        """)
+
+        assert {:error, message} = UserConfig.set_repositories([".", "aldc"])
+        assert message =~ "config.exs"
+        assert message =~ "init-config"
       end)
     end
 
@@ -383,13 +333,8 @@ defmodule EcosystemManager.UserConfigTest do
 
     test "does not override an existing workspace_path" do
       with_temp_config_dir(fn config_dir ->
-        config_path = Path.join(config_dir, "config.exs")
-
-        File.write!(config_path, """
-        import Config
-
-        config :ecosystem_manager,
-          workspace_path: "/existing/workspace"
+        File.write!(Path.join(config_dir, "config.yml"), """
+        workspace_path: "/existing/workspace"
         """)
 
         assert {:ok, _path} =
@@ -405,20 +350,17 @@ defmodule EcosystemManager.UserConfigTest do
 
   describe "sync_workspace/3" do
     setup do
-      original =
-        for key <- [:workspace_path, :workspaces, :repositories] do
-          {key, Application.get_env(:ecosystem_manager, key)}
-        end
-
-      on_exit(fn ->
-        Enum.each(original, fn {key, value} -> restore_env(key, value) end)
-      end)
+      snapshot_app_env()
     end
 
     test "registers the first workspace and pins its discovered repositories" do
       with_temp_config_dir(fn _config_dir ->
-        assert {:ok, _path, 1} =
+        assert {:ok, path, 1} =
                  UserConfig.sync_workspace("latex", "/home/u/latex", [".", "aldc"])
+
+        # Write-back keeps the annotated template
+        content = File.read!(path)
+        assert String.starts_with?(content, "# EcosystemManager User Configuration")
 
         assert UserConfig.load() == :ok
         assert Application.get_env(:ecosystem_manager, :workspaces) == [latex: "/home/u/latex"]
@@ -426,24 +368,19 @@ defmodule EcosystemManager.UserConfigTest do
       end)
     end
 
-    test "migrates a legacy workspace_path away in favor of :workspaces" do
+    test "migrates a legacy workspace_path away in favor of workspaces" do
       with_temp_config_dir(fn config_dir ->
-        config_path = Path.join(config_dir, "config.exs")
-
-        File.write!(config_path, """
-        import Config
-
-        config :ecosystem_manager,
-          workspace_path: "/home/u/latex"
+        File.write!(Path.join(config_dir, "config.yml"), """
+        workspace_path: "/home/u/latex"
         """)
 
         assert {:ok, path, 1} =
                  UserConfig.sync_workspace("latex", "/home/u/latex", ["."])
 
         # load/0 never deletes keys already in the application env, so assert on
-        # the generated file: workspace_path must be gone, replaced by :workspaces.
+        # the generated file: workspace_path must be gone, replaced by workspaces.
         content = File.read!(path)
-        refute String.contains?(content, "workspace_path")
+        refute String.contains?(content, "workspace_path:")
         assert String.contains?(content, "workspaces:")
 
         assert UserConfig.load() == :ok
@@ -453,14 +390,12 @@ defmodule EcosystemManager.UserConfigTest do
 
     test "adds a second workspace and drops the global repositories pin" do
       with_temp_config_dir(fn config_dir ->
-        config_path = Path.join(config_dir, "config.exs")
-
-        File.write!(config_path, """
-        import Config
-
-        config :ecosystem_manager,
-          workspaces: [latex: "/home/u/latex"],
-          repositories: [".", "aldc"]
+        File.write!(Path.join(config_dir, "config.yml"), """
+        workspaces:
+          latex: "/home/u/latex"
+        repositories:
+          - "."
+          - "aldc"
         """)
 
         assert {:ok, path, 2} =
@@ -473,9 +408,10 @@ defmodule EcosystemManager.UserConfigTest do
 
         assert UserConfig.load() == :ok
 
+        # Workspaces from YAML are normalized sorted by name
         assert Application.get_env(:ecosystem_manager, :workspaces) == [
-                 latex: "/home/u/latex",
-                 dns: "/home/u/dns"
+                 dns: "/home/u/dns",
+                 latex: "/home/u/latex"
                ]
       end)
     end
@@ -488,6 +424,66 @@ defmodule EcosystemManager.UserConfigTest do
         assert UserConfig.load() == :ok
         assert Application.get_env(:ecosystem_manager, :workspaces) == [latex: "/new/path"]
       end)
+    end
+
+    test "returns migration guidance when only a legacy config.exs exists" do
+      with_temp_config_dir(fn config_dir ->
+        File.write!(Path.join(config_dir, "config.exs"), """
+        import Config
+        config :ecosystem_manager, workspaces: [latex: "/legacy"]
+        """)
+
+        assert {:error, message} = UserConfig.sync_workspace("latex", "/home/u/latex", ["."])
+        assert message =~ "config.exs"
+        assert message =~ "init-config"
+      end)
+    end
+  end
+
+  defp restore_env(key, nil), do: Application.delete_env(:ecosystem_manager, key)
+  defp restore_env(key, value), do: Application.put_env(:ecosystem_manager, key, value)
+
+  # Snapshot the :ecosystem_manager application env keys these tests mutate
+  # (via load/0) and restore them afterwards so nothing leaks between files.
+  defp snapshot_app_env do
+    original =
+      for key <- [:workspace_path, :workspaces, :repositories, :ecosystem_org] do
+        {key, Application.get_env(:ecosystem_manager, key)}
+      end
+
+    on_exit(fn ->
+      Enum.each(original, fn {key, value} -> restore_env(key, value) end)
+    end)
+
+    :ok
+  end
+
+  # Runs `fun` with ECOSYSTEM_MANAGER_CONFIG_DIR pointing at a fresh
+  # temporary directory so UserConfig never touches the developer's real
+  # ~/.config/ecosystem-manager. Overriding HOME does not work for this:
+  # Path.expand/1 resolves `~` via the home directory cached at VM start.
+  # Passes the created config directory to `fun` and always restores the
+  # environment afterwards.
+  defp with_temp_config_dir(fun) do
+    temp_dir = System.tmp_dir!()
+
+    test_config_dir =
+      Path.join(temp_dir, "test_config_dir_#{System.unique_integer([:positive])}")
+
+    original = System.get_env("ECOSYSTEM_MANAGER_CONFIG_DIR")
+
+    try do
+      System.put_env("ECOSYSTEM_MANAGER_CONFIG_DIR", test_config_dir)
+      File.mkdir_p!(test_config_dir)
+      fun.(test_config_dir)
+    after
+      if original do
+        System.put_env("ECOSYSTEM_MANAGER_CONFIG_DIR", original)
+      else
+        System.delete_env("ECOSYSTEM_MANAGER_CONFIG_DIR")
+      end
+
+      File.rm_rf!(test_config_dir)
     end
   end
 end

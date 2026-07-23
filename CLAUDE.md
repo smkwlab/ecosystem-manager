@@ -24,7 +24,9 @@ mix escript.build            # produces ./ecosystem-manager
 
 The escript is run from the ecosystem workspace root, or from anywhere once a
 `workspace_path` / `workspaces` entry is set in
-`~/.config/ecosystem-manager/config.exs` (`./ecosystem-manager init-config`).
+`~/.config/ecosystem-manager/config.yml` — plain YAML data, never evaluated
+as code (`./ecosystem-manager init-config` generates an annotated example;
+the legacy `config.exs` format is not read).
 Repositories are auto-discovered under the workspace; there is no hardcoded
 list. See README.md for configuration and multi-workspace details.
 
