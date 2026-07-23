@@ -48,6 +48,24 @@ defmodule EcosystemManager.Config do
   end
 
   @doc """
+  Get cache TTL in seconds.
+
+  `ToolKit.Cache` expresses TTL in seconds, whereas `cache_ttl/0` is kept in
+  milliseconds for consistency with the other timeout settings; this converts
+  between the two.
+  """
+  def cache_ttl_seconds do
+    div(cache_ttl(), 1000)
+  end
+
+  @doc """
+  Get the base directory for the GitHub result cache.
+  """
+  def cache_dir do
+    Application.get_env(:ecosystem_manager, :cache_dir, "~/.cache/ecosystem-manager")
+  end
+
+  @doc """
   Check if timing is enabled.
   """
   def timing_enabled? do
@@ -113,6 +131,7 @@ defmodule EcosystemManager.Config do
       default_format: default_format(),
       cache_enabled: cache_enabled?(),
       cache_ttl: cache_ttl(),
+      cache_dir: cache_dir(),
       timing_enabled: timing_enabled?(),
       github_api_base_url: github_api_base_url(),
       default_include_github: default_include_github(),

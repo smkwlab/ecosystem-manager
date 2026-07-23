@@ -131,6 +131,7 @@ defmodule EcosystemManager.CLI do
   defp render_status(base_path, opts) do
     status_opts = [
       include_github: !opts[:fast],
+      use_cache: use_cache?(opts),
       max_concurrency: opts[:max_concurrency] || 8
     ]
 
@@ -151,6 +152,13 @@ defmodule EcosystemManager.CLI do
     end
 
     IO.puts("\nCompleted in #{elapsed}ms")
+  end
+
+  # Caching is enabled when the config turns it on and --no-cache was not given.
+  # It is orthogonal to --fast: --fast skips GitHub access entirely (nothing to
+  # cache), while --no-cache forces a fresh gh CLI call and bypasses the cache.
+  defp use_cache?(opts) do
+    Config.cache_enabled?() and not (opts[:no_cache] || false)
   end
 
   def build_filters(opts) do

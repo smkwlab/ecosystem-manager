@@ -73,6 +73,9 @@ ecosystem-manager status  # workspace_pathで指定したディレクトリで�
 # GitHub情報なしの高速モード（80ms）
 ./ecosystem-manager status --fast
 
+# キャッシュを使わず最新の GitHub 情報を取得
+./ecosystem-manager status --no-cache
+
 # 詳細表示
 ./ecosystem-manager status --long
 
@@ -120,9 +123,20 @@ config :ecosystem_manager,
   github_timeout: 15_000,      # GitHub APIタイムアウト(ms)
   git_timeout: 5_000,          # Gitコマンドタイムアウト(ms)
   default_format: :compact,    # デフォルト出力形式
-  enable_cache: false,         # キャッシュ有効化(将来実装)
+  enable_cache: false,         # gh CLI 結果のキャッシュ有効化
+  cache_ttl: 300_000,          # キャッシュ TTL(ms、秒に変換して使用)
+  cache_dir: "~/.cache/ecosystem-manager", # キャッシュ保存先
   enable_timing: false         # 実行時間測定
 ```
+
+`enable_cache: true` のとき、`gh issue/pr list` の結果をリポジトリ単位で
+`cache_dir` 配下（`github/` サブディレクトリ）にキャッシュし、TTL 内は
+gh CLI を呼ばずに再利用します。`status --no-cache` で一時的にバイパスして
+最新情報を取得できます（取得結果はキャッシュへ書き戻されます）。
+
+`--fast` はキャッシュとは独立で、GitHub アクセス自体を丸ごとスキップします
+（キャッシュの読み書きも行いません）。`--no-cache` は GitHub へアクセスした
+うえでキャッシュだけを回避する点が異なります。
 
 ### 環境別設定
 

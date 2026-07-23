@@ -1,16 +1,45 @@
 defmodule EcosystemManager.GitHub do
   @moduledoc """
   GitHub API operations for repository information.
+
+  GitHub data is fetched through the `gh` CLI (`gh issue/pr list --json`). The
+  per-repository results are cached with `ToolKit.Cache` under
+  `~/.cache/ecosystem-manager/github/` so repeated runs skip the CLI while the
+  entries are fresh.
+
+  Caching is opt-in per call via the `:use_cache` option (the CLI turns it on
+  from the `enable_cache` config unless `--no-cache` is given). The `--fast`
+  flag is a separate concern: it skips GitHub access entirely, so no cache is
+  read or written in that mode.
   """
 
   require Logger
 
-  @doc "Get issues and pull requests for a repository"
-  def fetch_github_info(repo) do
+  alias EcosystemManager.Config
+  alias ToolKit.Cache
+
+  # Cache subdirectory (category) under the cache directory.
+  @cache_category "github"
+
+  # persistent_term key for the test-only gh CLI invocation counter. It lets a
+  # test assert that a cache hit does not shell out to gh.
+  @mock_counter_key {__MODULE__, :mock_gh_call_count}
+
+  @doc """
+  Get issues and pull requests for a repository.
+
+  Options:
+
+    * `:use_cache` — read/write the per-repository cache (default `false`)
+    * `:cache_dir` — override the cache directory (defaults to `Config.cache_dir/0`)
+    * `:cache_ttl` — override the cache TTL in seconds (defaults to
+      `Config.cache_ttl_seconds/0`)
+  """
+  def fetch_github_info(repo, opts \\ []) do
     if EcosystemManager.Repository.exists?(repo) do
       case get_github_remote(repo) do
         {:ok, {owner, repo_name}} ->
-          fetch_remote_info(repo, owner, repo_name)
+          fetch_remote_info(repo, owner, repo_name, opts)
 
         :error ->
           default_github_info(repo)
@@ -21,9 +50,9 @@ defmodule EcosystemManager.GitHub do
   end
 
   # Private helper to reduce nesting
-  defp fetch_remote_info(repo, owner, repo_name) do
-    issues_task = Task.async(fn -> get_issues(owner, repo_name) end)
-    prs_task = Task.async(fn -> get_pull_requests(owner, repo_name) end)
+  defp fetch_remote_info(repo, owner, repo_name, opts) do
+    issues_task = Task.async(fn -> get_issues(owner, repo_name, opts) end)
+    prs_task = Task.async(fn -> get_pull_requests(owner, repo_name, opts) end)
 
     issues = Task.await(issues_task, 10_000)
     prs = Task.await(prs_task, 10_000)
@@ -53,17 +82,21 @@ defmodule EcosystemManager.GitHub do
   end
 
   @doc "Get issues for a repository"
-  def get_issues(owner, repo) do
-    case gh_api_call([
-           "issue",
-           "list",
-           "--repo",
-           "#{owner}/#{repo}",
-           "--state",
-           "open",
-           "--json",
-           "number,title,labels"
-         ]) do
+  def get_issues(owner, repo, opts \\ []) do
+    case cached_gh_call(
+           cache_key(owner, repo, "issues"),
+           [
+             "issue",
+             "list",
+             "--repo",
+             "#{owner}/#{repo}",
+             "--state",
+             "open",
+             "--json",
+             "number,title,labels"
+           ],
+           opts
+         ) do
       {:ok, issues} ->
         total = length(issues)
         bugs = count_by_labels(issues, ~w[bug error critical regression])
@@ -78,15 +111,19 @@ defmodule EcosystemManager.GitHub do
   end
 
   @doc "Get pull requests for a repository"
-  def get_pull_requests(owner, repo) do
-    case gh_api_call([
-           "pr",
-           "list",
-           "--repo",
-           "#{owner}/#{repo}",
-           "--json",
-           "number,title,isDraft,reviewDecision"
-         ]) do
+  def get_pull_requests(owner, repo, opts \\ []) do
+    case cached_gh_call(
+           cache_key(owner, repo, "prs"),
+           [
+             "pr",
+             "list",
+             "--repo",
+             "#{owner}/#{repo}",
+             "--json",
+             "number,title,isDraft,reviewDecision"
+           ],
+           opts
+         ) do
       {:ok, prs} ->
         total = length(prs)
         drafts = Enum.count(prs, & &1["isDraft"])
@@ -105,13 +142,61 @@ defmodule EcosystemManager.GitHub do
 
   # Private functions
 
+  # Look the result up in the cache first (when caching is enabled for this
+  # call); on a miss, run the gh CLI and store a successful result. `--no-cache`
+  # / disabled cache is expressed as `use_cache?/1` returning false, in which
+  # case the CLI is always run and nothing is written.
+  defp cached_gh_call(key, args, opts) do
+    if use_cache?(opts) do
+      case Cache.get(key, cache_opts(opts)) do
+        {:ok, data} -> {:ok, data}
+        {:error, _reason} -> fetch_and_cache(key, args, opts)
+      end
+    else
+      gh_api_call(args)
+    end
+  end
+
+  defp fetch_and_cache(key, args, opts) do
+    case gh_api_call(args) do
+      {:ok, data} = ok ->
+        _ = Cache.put(key, data, cache_opts(opts))
+        ok
+
+      other ->
+        other
+    end
+  end
+
+  defp use_cache?(opts), do: Keyword.get(opts, :use_cache, false)
+
+  defp cache_opts(opts) do
+    [
+      cache_dir: Path.expand(Keyword.get(opts, :cache_dir, Config.cache_dir())),
+      category: @cache_category,
+      ttl: Keyword.get(opts, :cache_ttl, Config.cache_ttl_seconds())
+    ]
+  end
+
+  # gh issue/pr list are distinct calls for the same repo, so the kind keeps
+  # their entries apart. Cache.sanitize/1 flattens the "owner/repo:kind" key
+  # into a single filename.
+  defp cache_key(owner, repo, kind), do: "#{owner}/#{repo}:#{kind}"
+
   defp gh_api_call(args) do
     # Check for mock mode in test environment
     if System.get_env("MOCK_GH_CLI") == "true" do
+      _ = bump_mock_call_count()
       mock_gh_response(args)
     else
       real_gh_api_call(args)
     end
+  end
+
+  defp read_mock_call_count, do: :persistent_term.get(@mock_counter_key, 0)
+
+  defp bump_mock_call_count do
+    :persistent_term.put(@mock_counter_key, read_mock_call_count() + 1)
   end
 
   defp real_gh_api_call(args) do
@@ -216,6 +301,12 @@ defmodule EcosystemManager.GitHub do
   # Test helpers - compiled only in the :test environment, so they never
   # exist in production builds
   if Mix.env() == :test do
+    @doc false
+    def reset_mock_gh_call_count, do: :persistent_term.put(@mock_counter_key, 0)
+
+    @doc false
+    def mock_gh_call_count, do: read_mock_call_count()
+
     @doc false
     def test_count_by_labels(issues, target_labels), do: count_by_labels(issues, target_labels)
 

@@ -20,6 +20,7 @@ defmodule EcosystemManager.CLI.Spec do
     },
     long: %{type: :boolean, alias: :l, values: nil, doc: "詳細テーブル表示"},
     fast: %{type: :boolean, alias: nil, values: nil, doc: "GitHub API を呼ばない高速モード"},
+    no_cache: %{type: :boolean, alias: nil, values: nil, doc: "キャッシュを使用しない"},
     all: %{type: :boolean, alias: nil, values: nil, doc: "設定済みの全ワークスペースを対象にする"},
     urgent_issues: %{type: :boolean, alias: nil, values: nil, doc: "緊急 issue のあるリポジトリのみ表示"},
     with_prs: %{type: :boolean, alias: nil, values: nil, doc: "open PR のあるリポジトリのみ表示"},
@@ -57,6 +58,7 @@ defmodule EcosystemManager.CLI.Spec do
       options: [
         :long,
         :fast,
+        :no_cache,
         :all,
         :urgent_issues,
         :with_prs,
@@ -68,6 +70,7 @@ defmodule EcosystemManager.CLI.Spec do
         "status",
         "status --long",
         "status --fast",
+        "status --no-cache",
         "status --all",
         "status -w dns",
         "status -t"

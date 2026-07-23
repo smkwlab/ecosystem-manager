@@ -11,10 +11,11 @@ defmodule EcosystemManager.Status do
   def get_all_status(base_path, opts \\ []) do
     max_concurrency = Keyword.get(opts, :max_concurrency, Config.default_concurrency())
     include_github = Keyword.get(opts, :include_github, Config.default_include_github())
+    github_opts = github_opts(opts)
 
     Repository.all_repositories(base_path)
     |> Enum.map(&Repository.new(&1, base_path))
-    |> Task.async_stream(&fetch_repository_info(&1, include_github),
+    |> Task.async_stream(&fetch_repository_info(&1, include_github, github_opts),
       max_concurrency: max_concurrency,
       timeout: Config.github_timeout()
     )
@@ -35,7 +36,14 @@ defmodule EcosystemManager.Status do
 
     repo_name
     |> Repository.new(base_path)
-    |> fetch_repository_info(include_github)
+    |> fetch_repository_info(include_github, github_opts(opts))
+  end
+
+  # GitHub-specific options forwarded to EcosystemManager.GitHub. Caching is
+  # opt-in and off unless the caller enabled it (the CLI derives this from the
+  # enable_cache config and --no-cache).
+  defp github_opts(opts) do
+    [use_cache: Keyword.get(opts, :use_cache, false)]
   end
 
   @doc "Format status for display"
@@ -69,13 +77,13 @@ defmodule EcosystemManager.Status do
 
   # Private functions
 
-  defp fetch_repository_info(repo, include_github) do
+  defp fetch_repository_info(repo, include_github, github_opts) do
     # First get git information (fast)
     repo = Repository.fetch_git_info(repo)
 
     # Then get GitHub information if requested (slower)
     if include_github and repo.status != :missing do
-      GitHub.fetch_github_info(repo)
+      GitHub.fetch_github_info(repo, github_opts)
     else
       %{
         repo
