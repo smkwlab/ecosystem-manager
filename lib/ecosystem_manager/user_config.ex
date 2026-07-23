@@ -16,6 +16,7 @@ defmodule EcosystemManager.UserConfig do
     * `ecosystem_org` — GitHub org used to filter auto-discovery (string)
   """
 
+  alias EcosystemManager.Workspace
   alias ToolKit.Config.Layers
 
   @config_dir "~/.config/ecosystem-manager"
@@ -314,12 +315,16 @@ defmodule EcosystemManager.UserConfig do
     |> Enum.reduce_while({:ok, []}, fn {key, value}, {:ok, acc} ->
       case normalize_setting(key, value) do
         {:ok, normalized} ->
-          {:cont, {:ok, acc ++ [{key, normalized}]}}
+          {:cont, {:ok, [{key, normalized} | acc]}}
 
         {:error, message} ->
           {:halt, {:error, "Invalid configuration file #{config_path}: #{message}"}}
       end
     end)
+    |> case do
+      {:ok, settings} -> {:ok, Enum.reverse(settings)}
+      {:error, _} = error -> error
+    end
   end
 
   defp normalize_setting(:workspace_path, value) when is_binary(value), do: {:ok, value}
@@ -334,19 +339,27 @@ defmodule EcosystemManager.UserConfig do
   end
 
   defp normalize_setting(:workspaces, value) when is_map(value) do
-    if Enum.all?(value, fn {name, path} -> is_binary(name) and is_binary(path) end) do
-      # Keep the internal representation a keyword list (what Workspace and
-      # the write-back path expect). YAML mappings carry no reliable order,
-      # so sort by name for determinism. Names are bounded by
-      # Workspace.valid_name?/1 at registration time.
-      workspaces =
-        value
-        |> Enum.sort()
-        |> Enum.map(fn {name, path} -> {String.to_atom(name), path} end)
+    cond do
+      not Enum.all?(value, fn {name, path} -> is_binary(name) and is_binary(path) end) ->
+        {:error, "'workspaces' must be a mapping of name to path"}
 
-      {:ok, workspaces}
-    else
-      {:error, "'workspaces' must be a mapping of name to path"}
+      invalid = Enum.find(Map.keys(value), &(not Workspace.valid_name?(&1))) ->
+        {:error,
+         "invalid workspace name #{inspect(invalid)} in 'workspaces' " <>
+           "(use 1-64 letters, digits, '-' or '_')"}
+
+      true ->
+        # Keep the internal representation a keyword list (what Workspace and
+        # the write-back path expect). YAML mappings carry no reliable order,
+        # so sort by name for determinism. Workspace.valid_name?/1 above
+        # bounds the atoms created here to short, well-formed identifiers, so
+        # a hand-edited config cannot grow the atom table unboundedly.
+        workspaces =
+          value
+          |> Enum.sort()
+          |> Enum.map(fn {name, path} -> {String.to_atom(name), path} end)
+
+        {:ok, workspaces}
     end
   end
 

@@ -15,3 +15,10 @@ default_config_dir =
   )
 
 System.put_env("ECOSYSTEM_MANAGER_CONFIG_DIR", default_config_dir)
+
+# Remove the throwaway directory once the suite finishes (it may not even
+# exist if no test wrote to it).
+ExUnit.after_suite(fn _result ->
+  File.rm_rf!(default_config_dir)
+  :ok
+end)

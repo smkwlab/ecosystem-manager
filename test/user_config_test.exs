@@ -155,6 +155,18 @@ defmodule EcosystemManager.UserConfigTest do
       end)
     end
 
+    test "rejects invalid workspace names" do
+      with_temp_config_dir(fn config_dir ->
+        File.write!(Path.join(config_dir, "config.yml"), """
+        workspaces:
+          "bad name!": "/home/u/latex"
+        """)
+
+        assert {:error, message} = UserConfig.load()
+        assert message =~ "workspace name"
+      end)
+    end
+
     test "returns an error for wrongly typed values" do
       with_temp_config_dir(fn config_dir ->
         File.write!(Path.join(config_dir, "config.yml"), """
@@ -454,7 +466,9 @@ defmodule EcosystemManager.UserConfigTest do
   # environment afterwards.
   defp with_temp_config_dir(fun) do
     temp_dir = System.tmp_dir!()
-    test_config_dir = Path.join(temp_dir, "test_config_dir_#{:rand.uniform(10_000)}")
+
+    test_config_dir =
+      Path.join(temp_dir, "test_config_dir_#{System.unique_integer([:positive])}")
 
     original = System.get_env("ECOSYSTEM_MANAGER_CONFIG_DIR")
 
