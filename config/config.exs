@@ -21,10 +21,13 @@ config :ecosystem_manager,
   # Default format for output
   default_format: :compact,
 
-  # Cache settings (for future implementation)
+  # Cache settings for gh CLI results (issue/pr list), keyed per repository.
+  # Enable with --no-cache to bypass at runtime.
   enable_cache: false,
-  # 5 minutes
+  # 5 minutes (milliseconds; converted to seconds for ToolKit.Cache)
   cache_ttl: 300_000,
+  # Base directory for the GitHub result cache
+  cache_dir: "~/.cache/ecosystem-manager",
 
   # Performance monitoring
   enable_timing: false,
