@@ -40,8 +40,11 @@ defmodule EcosystemManager.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:tool_kit, github: "smkwlab/elixir-tool-kit", tag: "v0.1.2"},
+      {:tool_kit, github: "smkwlab/elixir-tool-kit", tag: "v0.2.0"},
       {:jason, "~> 1.4"},
+      # Explicit dependency: user config (config.yml) is parsed with
+      # YamlElixir directly, not only through tool_kit
+      {:yaml_elixir, "~> 2.9"},
       {:req, "~> 0.4"},
       # Development and testing tools
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},

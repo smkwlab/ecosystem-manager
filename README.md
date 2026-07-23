@@ -30,24 +30,33 @@ mix escript.build
 
 どのディレクトリからでもecosystem-managerを実行できるように、workspace pathを設定できます：
 
-1. **設定ファイルの作成**
+1. **設定例ファイルの生成**
    ```bash
    ./ecosystem-manager init-config
+   # → ~/.config/ecosystem-manager/config.example.yml（注釈付き）
    ```
 
-2. **設定ファイルの編集**
+2. **config.yml として配置・編集**
    ```bash
-   # ~/.config/ecosystem-manager/config.exs を編集
-   vim ~/.config/ecosystem-manager/config.exs
+   cd ~/.config/ecosystem-manager
+   cp config.example.yml config.yml
+   vim config.yml
    ```
 
 3. **workspace_pathを設定**
-   ```elixir
-   import Config
-   
-   config :ecosystem_manager,
-     workspace_path: "~/SynologyDrive/semi/LaTeX/latex-ecosystem"
+   ```yaml
+   workspace_path: "~/SynologyDrive/semi/LaTeX/latex-ecosystem"
    ```
+
+ユーザー設定 `~/.config/ecosystem-manager/config.yml` は純粋な YAML データで、
+コードとして評価されることはありません。対応キーは `workspace_path` /
+`workspaces` / `repositories` / `ecosystem_org` の 4 つで、未知のキーは
+無視されます。
+
+> **旧形式からの移行**: 旧 `config.exs`（Elixir コードとして評価される形式）は
+> 読み込まれません。`config.exs` だけが存在する場合は起動時に移行手順の警告が
+> 表示されるので、`init-config` で例を生成し、値を `config.yml` に転記してから
+> `config.exs` を削除してください。
 
 設定後は、どのディレクトリからでも実行可能：
 ```bash
@@ -99,9 +108,11 @@ mix format && mix credo && mix dialyzer
 
 ## 設定
 
-### 設定ファイル
+### ビルド時設定（開発者向け）
 
-`config/config.exs` で動作設定をカスタマイズできます：
+並列度やタイムアウトなどの動作設定は、リポジトリ内の `config/config.exs`
+（ビルド時に escript へ焼き込まれる Mix 設定）でカスタマイズできます。
+ユーザー設定 `~/.config/ecosystem-manager/config.yml` とは別物です：
 
 ```elixir
 config :ecosystem_manager,
@@ -147,8 +158,9 @@ config :ecosystem_manager,
 ./ecosystem-manager repos --sync
 ```
 
-`repos --sync` は実行した workspace を `~/.config/ecosystem-manager/config.exs`
-の `workspaces:` に登録します（既存の設定は保持）。単一 workspace のときは検出結果を
+`repos --sync` は実行した workspace を `~/.config/ecosystem-manager/config.yml`
+の `workspaces:` に登録します（既存の設定は保持し、注釈付きテンプレートで
+再描画します）。単一 workspace のときは検出結果を
 `repositories:` にピン留めするので、workspace ルートで一度 `repos --sync` すれば
 そのまま使える設定になります。エコシステム外のリポジトリ（無関係なプロジェクト等）が
 混じっている場合は、書き出された一覧から手動で削除してください。
@@ -159,12 +171,10 @@ config :ecosystem_manager,
 1 つのツールで扱えます。各 workspace のルートで `repos --sync` すると `workspaces:` に
 登録されます：
 
-```elixir
-config :ecosystem_manager,
-  workspaces: [
-    latex: "~/prj/LaTeX/latex-ecosystem",
-    dns:   "~/prj/DNS/ecosystem"
-  ]
+```yaml
+workspaces:
+  latex: "~/prj/LaTeX/latex-ecosystem"
+  dns: "~/prj/DNS/ecosystem"
 ```
 
 workspace は次の順で選択されます：

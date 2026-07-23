@@ -231,8 +231,8 @@ defmodule EcosystemManager.CLI do
       IO.puts("#{String.pad_trailing(formatted_key, 25)}: #{inspect(value)}")
     end)
 
-    IO.puts("\nConfiguration file: config/config.exs")
-    IO.puts("Example file: config/config.example.exs")
+    IO.puts("\nUser configuration file: #{UserConfig.get_config_path()}")
+    IO.puts("Generate an annotated example with 'ecosystem-manager init-config'")
   end
 
   defp show_repositories(base_path) do
@@ -312,8 +312,8 @@ defmodule EcosystemManager.CLI do
     case UserConfig.create_example_config() do
       {:ok, config_example} ->
         IO.puts("✓ Created example configuration: #{config_example}")
-        IO.puts("  Copy to config.exs and customize your settings")
-        IO.puts("  Include repositories: [...] to override default repository list")
+        IO.puts("  Copy to config.yml and customize your settings")
+        IO.puts("  Include a repositories: list to override the default repository list")
 
       {:error, reason} ->
         IO.puts("✗ Failed to create config example: #{reason}")
