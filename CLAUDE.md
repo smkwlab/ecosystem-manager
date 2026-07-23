@@ -17,7 +17,7 @@ mix escript.build            # produces ./ecosystem-manager
 
 ./ecosystem-manager status           # status of all repos in the workspace
 ./ecosystem-manager status --long    # detailed: branch, changes, PRs, issues
-./ecosystem-manager status --no-github  # fast, no GitHub API calls
+./ecosystem-manager status --fast       # fast, no GitHub API calls
 ./ecosystem-manager repos            # show resolved repositories and sources
 ./ecosystem-manager config           # show current configuration
 ```

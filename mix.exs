@@ -24,7 +24,7 @@ defmodule EcosystemManager.MixProject do
         plt_file: {:no_warn, "priv/plts/dialyzer.plt"},
         plt_add_apps: [:mix],
         flags: [:error_handling, :underspecs, :unmatched_returns],
-        ignore_warnings: "dialyzer.ignore-warnings"
+        ignore_warnings: "dialyzer.ignore-warnings.exs"
       ]
     ]
   end
@@ -40,6 +40,7 @@ defmodule EcosystemManager.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
+      {:tool_kit, github: "smkwlab/elixir-tool-kit", tag: "v0.1.2"},
       {:jason, "~> 1.4"},
       {:req, "~> 0.4"},
       # Development and testing tools

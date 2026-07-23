@@ -6,9 +6,12 @@ defmodule EcosystemManager.CLITest do
 
   describe "parse_args/1" do
     test "parses help flag" do
-      result = CLI.parse_args(["--help"])
-      assert result.opts[:help] == true
-      assert result.command == "status"
+      assert CLI.parse_args(["--help"]) == :help
+      assert CLI.parse_args(["-h"]) == :help
+    end
+
+    test "command help targets the command" do
+      assert CLI.parse_args(["status", "--help"]) == {:help_command, "status"}
     end
 
     test "parses command" do
@@ -45,10 +48,14 @@ defmodule EcosystemManager.CLITest do
     end
 
     test "handles aliases" do
-      result = CLI.parse_args(["-h", "-l", "-f"])
-      assert result.opts[:help] == true
+      result = CLI.parse_args(["status", "-l", "-t"])
       assert result.opts[:long] == true
-      assert result.opts[:fast] == true
+      assert result.opts[:time_sort] == true
+    end
+
+    test "-f is no longer an alias of --fast (reserved for --force)" do
+      assert {:error, message} = CLI.parse_args(["status", "-f"])
+      assert message =~ "-f"
     end
 
     test "parses time sort option" do
@@ -130,16 +137,19 @@ defmodule EcosystemManager.CLITest do
       assert is_binary(result.base_path)
     end
 
-    test "handles max-concurrency without value" do
-      result = CLI.parse_args(["status", "--max-concurrency"])
-      assert result.command == "status"
-      assert is_nil(result.opts[:max_concurrency])
+    test "max-concurrency without value is an error (strict parsing)" do
+      assert {:error, message} = CLI.parse_args(["status", "--max-concurrency"])
+      assert message =~ "--max-concurrency"
     end
 
-    test "handles unknown flags" do
-      result = CLI.parse_args(["status", "--unknown-flag"])
-      assert result.command == "status"
-      assert is_list(result.opts)
+    test "unknown flags are an error (strict parsing)" do
+      assert {:error, message} = CLI.parse_args(["status", "--unknown-flag"])
+      assert message =~ "--unknown-flag"
+    end
+
+    test "options not belonging to the command are an error" do
+      assert {:error, message} = CLI.parse_args(["config", "--long"])
+      assert message =~ "--long"
     end
   end
 
@@ -192,31 +202,41 @@ defmodule EcosystemManager.CLITest do
   end
 
   describe "main/1 integration" do
-    test "executes help command" do
-      # Capture IO to verify output
+    test "executes help command and exits 0" do
       result =
         ExUnit.CaptureIO.capture_io(fn ->
-          CLI.main(["help"])
+          assert catch_throw(CLI.main(["help"])) == {:cli_test_exit, 0}
         end)
 
-      assert String.contains?(result, "LaTeX Thesis Environment Ecosystem Manager")
-      assert String.contains?(result, "USAGE:")
-      assert String.contains?(result, "COMMANDS:")
+      assert String.contains?(result, "ecosystem-manager")
+      assert String.contains?(result, "使用方法")
+      assert String.contains?(result, "コマンド")
     end
 
-    test "executes help flag" do
+    test "executes help flag and exits 0" do
       result =
         ExUnit.CaptureIO.capture_io(fn ->
-          CLI.main(["--help"])
+          assert catch_throw(CLI.main(["--help"])) == {:cli_test_exit, 0}
         end)
 
-      assert String.contains?(result, "LaTeX Thesis Environment Ecosystem Manager")
+      assert String.contains?(result, "ecosystem-manager")
+    end
+
+    test "renders per-command help" do
+      result =
+        ExUnit.CaptureIO.capture_io(fn ->
+          assert catch_throw(CLI.main(["status", "--help"])) == {:cli_test_exit, 0}
+        end)
+
+      assert String.contains?(result, "ecosystem-manager status")
+      assert String.contains?(result, "--fast")
+      refute String.contains?(result, "--sync")
     end
 
     test "executes config command" do
       result =
         ExUnit.CaptureIO.capture_io(fn ->
-          CLI.main(["config"])
+          assert catch_throw(CLI.main(["config"])) == {:cli_test_exit, 0}
         end)
 
       assert String.contains?(result, "EcosystemManager Configuration")
@@ -225,7 +245,7 @@ defmodule EcosystemManager.CLITest do
     test "executes repos command" do
       result =
         ExUnit.CaptureIO.capture_io(fn ->
-          CLI.main(["repos"])
+          assert catch_throw(CLI.main(["repos"])) == {:cli_test_exit, 0}
         end)
 
       assert String.contains?(result, "Repository Configuration")
@@ -234,7 +254,7 @@ defmodule EcosystemManager.CLITest do
     test "executes init-config command" do
       result =
         ExUnit.CaptureIO.capture_io(fn ->
-          CLI.main(["init-config"])
+          assert catch_throw(CLI.main(["init-config"])) == {:cli_test_exit, 0}
         end)
 
       assert String.contains?(result, "Initializing user configuration")
@@ -243,7 +263,7 @@ defmodule EcosystemManager.CLITest do
     test "executes workspace command" do
       result =
         ExUnit.CaptureIO.capture_io(fn ->
-          CLI.main(["workspace"])
+          assert catch_throw(CLI.main(["workspace"])) == {:cli_test_exit, 0}
         end)
 
       # Should output a path (either configured workspace_path or detected base_path)
@@ -257,21 +277,42 @@ defmodule EcosystemManager.CLITest do
     test "executes status command with fast mode" do
       result =
         ExUnit.CaptureIO.capture_io(fn ->
-          CLI.main(["status", "--fast"])
+          assert catch_throw(CLI.main(["status", "--fast"])) == {:cli_test_exit, 0}
         end)
 
       assert String.contains?(result, "Repository Status Overview")
       assert String.contains?(result, "Fast mode")
     end
 
-    test "handles unknown command with exit" do
+    test "handles unknown command with exit code 1" do
       result =
         ExUnit.CaptureIO.capture_io(fn ->
-          assert catch_exit(CLI.main(["unknown"])) == {:shutdown, 1}
+          assert catch_throw(CLI.main(["unknown"])) == {:cli_test_exit, 1}
         end)
 
       assert String.contains?(result, "Unknown command: unknown")
       assert String.contains?(result, "Run 'ecosystem-manager help' for usage information.")
+    end
+
+    test "unknown options exit 1 with an error message" do
+      result =
+        ExUnit.CaptureIO.capture_io(:stderr, fn ->
+          assert catch_throw(CLI.main(["--no-github"])) == {:cli_test_exit, 1}
+        end)
+
+      assert String.contains?(result, "不明なオプション")
+    end
+  end
+
+  describe "spec integrity" do
+    test "every command is dispatchable and vice versa" do
+      alias EcosystemManager.CLI.Spec, as: CLISpec
+
+      for command <- CLISpec.commands() do
+        assert CLISpec.find_command(command.name)
+      end
+
+      assert Enum.sort(CLI.known_commands()) == Enum.sort(CLISpec.command_names())
     end
   end
 end
