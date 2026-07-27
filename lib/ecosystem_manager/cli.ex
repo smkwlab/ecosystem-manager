@@ -70,7 +70,7 @@ defmodule EcosystemManager.CLI do
   end
 
   defp continue_execute(%{command: "list"} = config) do
-    execute_status(config)
+    execute_list(config)
   end
 
   defp continue_execute(%{command: "config"}) do
@@ -114,9 +114,9 @@ defmodule EcosystemManager.CLI do
   @spec exit_with_code(non_neg_integer()) :: no_return()
   defp exit_with_code(code), do: EngineExit.exit_with_code(:ecosystem_manager, code)
 
-  defp execute_status(%{opts: opts, base_path: base_path}) do
+  defp execute_list(%{opts: opts, base_path: base_path}) do
     if opts[:all] do
-      execute_status_all(opts)
+      execute_list_all(opts)
     else
       IO.puts("Repository Status Overview")
       IO.puts("")
@@ -124,7 +124,7 @@ defmodule EcosystemManager.CLI do
     end
   end
 
-  defp execute_status_all(opts) do
+  defp execute_list_all(opts) do
     case Workspace.list() do
       [] ->
         IO.puts("Repository Status Overview")
