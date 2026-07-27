@@ -270,6 +270,34 @@ defmodule EcosystemManager.StatusTest do
              ]
     end
 
+    test "reverse option flips the output order" do
+      repos = [
+        %Repository{name: "alpha", display_name: "alpha"},
+        %Repository{name: "beta", display_name: "beta"},
+        %Repository{name: "gamma", display_name: "gamma"}
+      ]
+
+      forward = Status.format_status(repos, format: :compact)
+      reversed = Status.format_status(repos, format: :compact, reverse: true)
+
+      # Reversed output lists gamma before alpha (opposite of the input order)
+      assert forward =~ ~r/alpha.*beta.*gamma/s
+      assert reversed =~ ~r/gamma.*beta.*alpha/s
+    end
+
+    test "reverse option flips a time-sorted order to oldest-first" do
+      repos = [
+        %Repository{name: "oldest", display_name: "oldest", last_commit_timestamp: 1_000},
+        %Repository{name: "newest", display_name: "newest", last_commit_timestamp: 3_000},
+        %Repository{name: "middle", display_name: "middle", last_commit_timestamp: 2_000}
+      ]
+
+      output = Status.format_status(repos, format: :compact, time_sort: true, reverse: true)
+
+      # time_sort is newest-first; reverse turns it into oldest-first
+      assert output =~ ~r/oldest.*middle.*newest/s
+    end
+
     test "truncate_string function coverage" do
       # Test through format_status which uses truncate_string internally
       temp_dir = System.tmp_dir!()

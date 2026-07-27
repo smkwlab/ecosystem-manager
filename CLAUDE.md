@@ -15,9 +15,10 @@ management repository — workspaces are resolved from user configuration.
 mix deps.get
 mix escript.build            # produces ./ecosystem-manager
 
-./ecosystem-manager status           # status of all repos in the workspace
-./ecosystem-manager status --long    # detailed: branch, changes, PRs, issues
-./ecosystem-manager status --fast       # fast, no GitHub API calls
+./ecosystem-manager list             # status of all repos in the workspace
+                                     # (alias: ls; also the default command)
+./ecosystem-manager list --long      # detailed: branch, changes, PRs, issues
+./ecosystem-manager list --fast         # fast, no GitHub API calls
 ./ecosystem-manager repos            # show resolved repositories and sources
 ./ecosystem-manager config           # show current configuration
 ```

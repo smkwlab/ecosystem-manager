@@ -25,13 +25,27 @@ defmodule EcosystemManager.CLI do
   @doc false
   def parse_args(args) do
     # strict パース・help 短絡・コマンド別オプション検証は ToolKit に委譲する。
-    # サブコマンド省略時は status を実行する
-    case EngineParser.parse(Spec.spec(), args, default_command: "status") do
+    # サブコマンド省略時は list を実行する
+    case EngineParser.parse(Spec.spec(), args, default_command: "list") do
       {:command, command, argv, opts} ->
-        %{command: command, args: argv, opts: opts, base_path: resolve_base_path(opts)}
+        %{
+          command: canonical_command(command),
+          args: argv,
+          opts: opts,
+          base_path: resolve_base_path(opts)
+        }
 
       other ->
         other
+    end
+  end
+
+  # Parser は入力トークンをそのまま返すので、alias(例: "ls")を正規名("list")に
+  # 畳み込んでから dispatch に渡す。未知のコマンドはそのまま通す。
+  defp canonical_command(name) do
+    case Spec.find_command(name) do
+      nil -> name
+      command -> command.name
     end
   end
 
@@ -55,8 +69,8 @@ defmodule EcosystemManager.CLI do
     exit_with_code(0)
   end
 
-  defp continue_execute(%{command: "status"} = config) do
-    execute_status(config)
+  defp continue_execute(%{command: "list"} = config) do
+    execute_list(config)
   end
 
   defp continue_execute(%{command: "config"}) do
@@ -100,9 +114,9 @@ defmodule EcosystemManager.CLI do
   @spec exit_with_code(non_neg_integer()) :: no_return()
   defp exit_with_code(code), do: EngineExit.exit_with_code(:ecosystem_manager, code)
 
-  defp execute_status(%{opts: opts, base_path: base_path}) do
+  defp execute_list(%{opts: opts, base_path: base_path}) do
     if opts[:all] do
-      execute_status_all(opts)
+      execute_list_all(opts)
     else
       IO.puts("Repository Status Overview")
       IO.puts("")
@@ -110,7 +124,7 @@ defmodule EcosystemManager.CLI do
     end
   end
 
-  defp execute_status_all(opts) do
+  defp execute_list_all(opts) do
     case Workspace.list() do
       [] ->
         IO.puts("Repository Status Overview")
@@ -138,7 +152,8 @@ defmodule EcosystemManager.CLI do
     format_opts = [
       format: if(opts[:long], do: :long, else: :compact),
       filters: build_filters(opts),
-      time_sort: opts[:time_sort] || false
+      time_sort: opts[:time_sort] || false,
+      reverse: opts[:reverse] || false
     ]
 
     start_time = System.monotonic_time(:millisecond)
