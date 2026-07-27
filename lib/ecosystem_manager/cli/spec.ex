@@ -37,6 +37,7 @@ defmodule EcosystemManager.CLI.Spec do
       doc: "並列実行数の上限（デフォルト: 8）"
     },
     time_sort: %{type: :boolean, alias: :t, values: nil, doc: "最終 commit 時刻順でソート"},
+    reverse: %{type: :boolean, alias: :r, values: nil, doc: "ソート順を反転"},
     sync: %{
       type: :boolean,
       alias: nil,
@@ -51,10 +52,10 @@ defmodule EcosystemManager.CLI.Spec do
 
   @commands [
     %{
-      name: "status",
-      aliases: [],
-      usage: ["status"],
-      summary: "全リポジトリの状態を表示（サブコマンド省略時の既定）",
+      name: "list",
+      aliases: ["ls"],
+      usage: ["list", "ls"],
+      summary: "全リポジトリの状態を一覧表示（サブコマンド省略時の既定）",
       options: [
         :long,
         :fast,
@@ -64,16 +65,19 @@ defmodule EcosystemManager.CLI.Spec do
         :with_prs,
         :needs_review,
         :max_concurrency,
-        :time_sort
+        :time_sort,
+        :reverse
       ],
       examples: [
-        "status",
-        "status --long",
-        "status --fast",
-        "status --no-cache",
-        "status --all",
-        "status -w dns",
-        "status -t"
+        "list",
+        "ls",
+        "list --long",
+        "list --fast",
+        "list --no-cache",
+        "list --all",
+        "list -w dns",
+        "list -t",
+        "list -t -r"
       ]
     },
     %{

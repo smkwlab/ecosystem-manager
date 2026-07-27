@@ -21,7 +21,7 @@ mix deps.get
 mix escript.build
 
 # ビルドした escript を実行
-./ecosystem-manager status
+./ecosystem-manager list
 ```
 
 ## 設定
@@ -61,31 +61,37 @@ mix escript.build
 設定後は、どのディレクトリからでも実行可能：
 ```bash
 cd /任意のディレクトリ
-ecosystem-manager status  # workspace_pathで指定したディレクトリで実行される
+ecosystem-manager list  # workspace_pathで指定したディレクトリで実行される
 ```
 
 ## 使用方法
 
 ```bash
-# 全リポジトリの状況確認
-./ecosystem-manager status
+# 全リポジトリの状況確認（list が既定コマンド。ls は alias、引数なしでも同じ）
+./ecosystem-manager list
+./ecosystem-manager ls
+./ecosystem-manager
 
 # GitHub情報なしの高速モード（80ms）
-./ecosystem-manager status --fast
+./ecosystem-manager list --fast
 
 # キャッシュを使わず最新の GitHub 情報を取得
-./ecosystem-manager status --no-cache
+./ecosystem-manager list --no-cache
 
 # 詳細表示
-./ecosystem-manager status --long
+./ecosystem-manager list --long
 
 # フィルタリング
-./ecosystem-manager status --urgent-issues
-./ecosystem-manager status --with-prs
-./ecosystem-manager status --needs-review
+./ecosystem-manager list --urgent-issues
+./ecosystem-manager list --with-prs
+./ecosystem-manager list --needs-review
 
 # 並列度調整（デフォルト: 8）
-./ecosystem-manager status --max-concurrency 4
+./ecosystem-manager list --max-concurrency 4
+
+# 最終 commit 時刻順にソート（-t）／ソート順を反転（-r）
+./ecosystem-manager list -t
+./ecosystem-manager list -t -r
 ```
 
 ## パフォーマンス
@@ -131,7 +137,7 @@ config :ecosystem_manager,
 
 `enable_cache: true` のとき、`gh issue/pr list` の結果をリポジトリ単位で
 `cache_dir` 配下（`github/` サブディレクトリ）にキャッシュし、TTL 内は
-gh CLI を呼ばずに再利用します。`status --no-cache` はこのキャッシュを
+gh CLI を呼ばずに再利用します。`list --no-cache` はこのキャッシュを
 バイパスし、常に gh CLI を呼んで最新情報を取得します（読み込みも書き込みも
 行いません）。
 
@@ -204,13 +210,13 @@ workspace は次の順で選択されます：
 ./ecosystem-manager workspace --list
 
 # cd した先の workspace が対象になる
-cd ~/prj/DNS/ecosystem && ./ecosystem-manager status
+cd ~/prj/DNS/ecosystem && ./ecosystem-manager list
 
 # 名前で明示指定
-./ecosystem-manager status -w dns
+./ecosystem-manager list -w dns
 
 # 全 workspace をまとめて表示
-./ecosystem-manager status --all
+./ecosystem-manager list --all
 ```
 
 複数 workspace が登録されている場合、リポジトリ一覧は各 workspace ごとに自動検出で

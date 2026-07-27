@@ -51,10 +51,12 @@ defmodule EcosystemManager.Status do
     format = Keyword.get(opts, :format, Config.default_format())
     filters = Keyword.get(opts, :filters, [])
     time_sort = Keyword.get(opts, :time_sort, false)
+    reverse = Keyword.get(opts, :reverse, false)
 
     repos
     |> apply_filters(filters)
     |> maybe_sort_by_time(time_sort)
+    |> maybe_reverse(reverse)
     |> format_output(format)
   end
 
@@ -74,6 +76,11 @@ defmodule EcosystemManager.Status do
   # Sort by time if time_sort option is enabled
   defp maybe_sort_by_time(repos, true), do: sort_repositories_by_time(repos)
   defp maybe_sort_by_time(repos, false), do: repos
+
+  # Reverse the resulting order when --reverse is given. Applied after sorting so
+  # it flips whichever order is in effect (discovery order or time_sort).
+  defp maybe_reverse(repos, true), do: Enum.reverse(repos)
+  defp maybe_reverse(repos, false), do: repos
 
   # Private functions
 

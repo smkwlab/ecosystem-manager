@@ -11,23 +11,23 @@ defmodule EcosystemManager.CLITest do
     end
 
     test "command help targets the command" do
-      assert CLI.parse_args(["status", "--help"]) == {:help_command, "status"}
+      assert CLI.parse_args(["list", "--help"]) == {:help_command, "list"}
     end
 
     test "parses command" do
-      result = CLI.parse_args(["status"])
-      assert result.command == "status"
+      result = CLI.parse_args(["list"])
+      assert result.command == "list"
     end
 
     test "parses options" do
-      result = CLI.parse_args(["status", "--long", "--fast"])
+      result = CLI.parse_args(["list", "--long", "--fast"])
       assert result.opts[:long] == true
       assert result.opts[:fast] == true
     end
 
-    test "defaults to status command" do
+    test "defaults to list command" do
       result = CLI.parse_args([])
-      assert result.command == "status"
+      assert result.command == "list"
     end
 
     test "handles unknown command" do
@@ -36,40 +36,62 @@ defmodule EcosystemManager.CLITest do
     end
 
     test "parses max_concurrency option" do
-      result = CLI.parse_args(["status", "--max-concurrency", "12"])
+      result = CLI.parse_args(["list", "--max-concurrency", "12"])
       assert result.opts[:max_concurrency] == 12
     end
 
     test "parses filter options" do
-      result = CLI.parse_args(["status", "--urgent-issues", "--with-prs", "--needs-review"])
+      result = CLI.parse_args(["list", "--urgent-issues", "--with-prs", "--needs-review"])
       assert result.opts[:urgent_issues] == true
       assert result.opts[:with_prs] == true
       assert result.opts[:needs_review] == true
     end
 
     test "handles aliases" do
-      result = CLI.parse_args(["status", "-l", "-t"])
+      result = CLI.parse_args(["list", "-l", "-t"])
       assert result.opts[:long] == true
       assert result.opts[:time_sort] == true
     end
 
     test "-f is no longer an alias of --fast (reserved for --force)" do
-      assert {:error, message} = CLI.parse_args(["status", "-f"])
+      assert {:error, message} = CLI.parse_args(["list", "-f"])
       assert message =~ "-f"
     end
 
     test "parses time sort option" do
-      result = CLI.parse_args(["status", "--time-sort"])
+      result = CLI.parse_args(["list", "--time-sort"])
       assert result.opts[:time_sort] == true
     end
 
     test "parses time sort alias" do
-      result = CLI.parse_args(["status", "-t"])
+      result = CLI.parse_args(["list", "-t"])
       assert result.opts[:time_sort] == true
     end
 
+    test "ls is an alias of list" do
+      result = CLI.parse_args(["ls"])
+      assert result.command == "list"
+    end
+
+    test "ls alias carries options through" do
+      result = CLI.parse_args(["ls", "--fast", "-t"])
+      assert result.command == "list"
+      assert result.opts[:fast] == true
+      assert result.opts[:time_sort] == true
+    end
+
+    test "parses reverse option" do
+      result = CLI.parse_args(["list", "--reverse"])
+      assert result.opts[:reverse] == true
+    end
+
+    test "parses reverse alias" do
+      result = CLI.parse_args(["list", "-r"])
+      assert result.opts[:reverse] == true
+    end
+
     test "includes base_path in result" do
-      result = CLI.parse_args(["status"])
+      result = CLI.parse_args(["list"])
       assert is_binary(result.base_path)
     end
   end
@@ -112,13 +134,13 @@ defmodule EcosystemManager.CLITest do
     test "base_path falls back to the current directory when no workspace is configured" do
       # With default config (no workspaces / workspace_path), resolution should
       # fall back to the current directory.
-      result = CLI.parse_args(["status"])
+      result = CLI.parse_args(["list"])
       assert is_binary(result.base_path)
     end
 
     test "base_path validation" do
       # Parse args should always provide a base_path
-      result = CLI.parse_args(["status"])
+      result = CLI.parse_args(["list"])
       assert Map.has_key?(result, :base_path)
       assert is_binary(result.base_path)
 
@@ -138,12 +160,12 @@ defmodule EcosystemManager.CLITest do
     end
 
     test "max-concurrency without value is an error (strict parsing)" do
-      assert {:error, message} = CLI.parse_args(["status", "--max-concurrency"])
+      assert {:error, message} = CLI.parse_args(["list", "--max-concurrency"])
       assert message =~ "--max-concurrency"
     end
 
     test "unknown flags are an error (strict parsing)" do
-      assert {:error, message} = CLI.parse_args(["status", "--unknown-flag"])
+      assert {:error, message} = CLI.parse_args(["list", "--unknown-flag"])
       assert message =~ "--unknown-flag"
     end
 
@@ -225,10 +247,10 @@ defmodule EcosystemManager.CLITest do
     test "renders per-command help" do
       result =
         ExUnit.CaptureIO.capture_io(fn ->
-          assert catch_throw(CLI.main(["status", "--help"])) == {:cli_test_exit, 0}
+          assert catch_throw(CLI.main(["list", "--help"])) == {:cli_test_exit, 0}
         end)
 
-      assert String.contains?(result, "ecosystem-manager status")
+      assert String.contains?(result, "ecosystem-manager list")
       assert String.contains?(result, "--fast")
       refute String.contains?(result, "--sync")
     end
@@ -274,10 +296,10 @@ defmodule EcosystemManager.CLITest do
       assert String.starts_with?(trimmed_result, "/")
     end
 
-    test "executes status command with fast mode" do
+    test "executes list command with fast mode" do
       result =
         ExUnit.CaptureIO.capture_io(fn ->
-          assert catch_throw(CLI.main(["status", "--fast"])) == {:cli_test_exit, 0}
+          assert catch_throw(CLI.main(["list", "--fast"])) == {:cli_test_exit, 0}
         end)
 
       assert String.contains?(result, "Repository Status Overview")
