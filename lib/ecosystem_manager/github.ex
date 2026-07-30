@@ -286,11 +286,15 @@ defmodule EcosystemManager.GitHub do
 
   defp parse_github_url(url) do
     if String.contains?(url, "github.com") do
-      # Extract owner/repo from various GitHub URL formats
-      regex = ~r/github\.com[\/:]([^\/]+)\/([^\/\s\.]+)/
+      # Extract owner/repo from various GitHub URL formats. The repository name
+      # may contain dots and may even start with one (smkwlab/.github), so only
+      # a path separator ends it -- the ".git" suffix is stripped afterwards.
+      regex = ~r/github\.com[\/:]([^\/]+)\/([^\/\s]+)/
 
       case Regex.run(regex, url) do
-        [_, owner, repo] -> {:ok, {owner, String.replace(repo, ".git", "")}}
+        # replace_suffix, not replace: a name like dot.github would otherwise
+        # lose its inner ".git" as well.
+        [_, owner, repo] -> {:ok, {owner, String.replace_suffix(repo, ".git", "")}}
         _ -> :error
       end
     else
