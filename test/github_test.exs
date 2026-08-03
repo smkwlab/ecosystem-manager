@@ -90,6 +90,8 @@ defmodule EcosystemManager.GitHubTest do
       end)
     end
 
+    # Regression guard, not a fix: this form already parsed before the dotted
+    # name change, and widening the name pattern must keep it that way.
     test "parses the ssh:// form" do
       with_origin("ssh://git@github.com/smkwlab/aldc.git", fn repo ->
         assert GitHub.get_github_remote(repo) == {:ok, {"smkwlab", "aldc"}}
