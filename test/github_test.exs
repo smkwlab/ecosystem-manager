@@ -69,6 +69,50 @@ defmodule EcosystemManager.GitHubTest do
         File.rm_rf!(test_repo)
       end
     end
+
+    # smkwlab/.github holds the org's reusable workflows, so silently reporting
+    # it as empty is not a corner case.
+    test "keeps a repository name that starts with a dot" do
+      for origin <- [
+            "git@github.com:smkwlab/.github.git",
+            "https://github.com/smkwlab/.github.git",
+            "git@github.com:smkwlab/.github"
+          ] do
+        with_origin(origin, fn repo ->
+          assert GitHub.get_github_remote(repo) == {:ok, {"smkwlab", ".github"}}
+        end)
+      end
+    end
+
+    test "strips only the trailing .git, not every occurrence" do
+      with_origin("git@github.com:smkwlab/dot.github.git", fn repo ->
+        assert GitHub.get_github_remote(repo) == {:ok, {"smkwlab", "dot.github"}}
+      end)
+    end
+
+    # Regression guard, not a fix: this form already parsed before the dotted
+    # name change, and widening the name pattern must keep it that way.
+    test "parses the ssh:// form" do
+      with_origin("ssh://git@github.com/smkwlab/aldc.git", fn repo ->
+        assert GitHub.get_github_remote(repo) == {:ok, {"smkwlab", "aldc"}}
+      end)
+    end
+  end
+
+  # Run `fun` against a repository whose only distinguishing feature is its
+  # origin remote.
+  defp with_origin(origin, fun) do
+    test_repo = Path.join(System.tmp_dir!(), "origin_repo_#{:rand.uniform(10_000)}")
+    File.mkdir_p!(test_repo)
+
+    System.cmd("git", ["init"], cd: test_repo)
+    System.cmd("git", ["remote", "add", "origin", origin], cd: test_repo)
+
+    try do
+      fun.(%Repository{path: test_repo})
+    after
+      File.rm_rf!(test_repo)
+    end
   end
 
   describe "get_pull_requests function" do
