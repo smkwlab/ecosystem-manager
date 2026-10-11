@@ -45,7 +45,7 @@ defmodule EcosystemManager.MixProject do
       # Explicit dependency: user config (config.yml) is parsed with
       # YamlElixir directly, not only through tool_kit
       {:yaml_elixir, "~> 2.9"},
-      {:req, "~> 0.4"},
+      {:req, "~> 0.7"},
       # Development and testing tools
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
